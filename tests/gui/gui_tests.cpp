@@ -23,6 +23,9 @@
 #include "pattern_dialog.h"
 #include "getting_started.h"
 #include "prop_editors.h"
+#include "mainwindow.h"
+#include <QScreen>
+#include <QStatusBar>
 #include "report_export.h"
 #include "plot_widget.h"
 #include "xy_plot.h"
@@ -570,7 +573,8 @@ private slots:
         f.write(("opendocument('" + model + "')\n" + body).toUtf8());
         f.close();
         QProcess proc;
-        proc.start(headless, {"-run", py});
+        // Own port: a FEMM window the user has open holds the default one
+        proc.start(headless, {"--port", "48177", "-run", py});
         QVERIFY(proc.waitForFinished(300000));
         QFile out(csv);
         QVERIFY(out.open(QIODevice::ReadOnly));
@@ -803,6 +807,31 @@ private slots:
         QVERIFY(pw && pw->isVisible());
         const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
         if (!dir.isEmpty()) dlg.grab().save(dir + "/bh_preview.png");
+    }
+
+    // The main window must fit a laptop screen whatever the status bar says
+    void mainWindowShrinks()
+    {
+        ed->hide();
+        MainWindow w(nullptr);
+        w.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&w));
+        w.statusBar()->findChildren<QLabel *>().last()->setText(QString(400, 'x'));
+        QMetaObject::invokeMethod(&w, "updateStatus", Q_ARG(QString,
+            "Select: click an object (Shift adds), drag a window (left-to-right: inside, right-to-left: touching), "
+            "drag a selected point to move it. Space: properties, Backspace: delete."));
+        QApplication::processEvents();
+        const QSize min = w.minimumSizeHint().expandedTo(w.minimumSize());
+        qDebug() << "minimum" << min;
+        QVERIFY2(min.width() <= 900, qPrintable(QString("min width %1").arg(min.width())));
+        QVERIFY2(min.height() <= 650, qPrintable(QString("min height %1").arg(min.height())));
+        // ...and with a model open (toolbars, Model panel)
+        w.addEditorTab(new MagDocument, "test.fem");
+        QApplication::processEvents();
+        const QSize min2 = w.minimumSizeHint().expandedTo(w.minimumSize());
+        qDebug() << "minimum with model" << min2;
+        QVERIFY2(min2.width() <= 900, qPrintable(QString("min width %1").arg(min2.width())));
+        QVERIFY2(min2.height() <= 650, qPrintable(QString("min height %1").arg(min2.height())));
     }
 
     void commandPaletteFindsAndRuns()

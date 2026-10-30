@@ -239,7 +239,12 @@ MainWindow::MainWindow(TcpServer *server, QWidget *parent)
     connect(m_welcome, &WelcomePage::openFile, this, [this](const QString &p) { openPath(p); });
     connect(m_welcome, &WelcomePage::openOther, this, &MainWindow::onOpen);
     m_centralStack = new QStackedWidget;
-    m_centralStack->addWidget(m_welcome);
+    // Scrollable, so the start page never sets a minimum window size
+    auto *welcomeScroll = new QScrollArea;
+    welcomeScroll->setWidget(m_welcome);
+    welcomeScroll->setWidgetResizable(true);
+    welcomeScroll->setFrameShape(QFrame::NoFrame);
+    m_centralStack->addWidget(welcomeScroll);
     m_centralStack->addWidget(m_mdiArea);
     setCentralWidget(m_centralStack);
 
@@ -1115,7 +1120,7 @@ void MainWindow::onSubWindowActivated(QMdiSubWindow *sub)
 void MainWindow::showEmptyUI()
 {
     m_uiState = -1;
-    if (m_centralStack) { m_welcome->refresh(); m_centralStack->setCurrentWidget(m_welcome); }
+    if (m_centralStack) { m_welcome->refresh(); m_centralStack->setCurrentIndex(0); }
     if (m_modelPanel) m_modelPanel->hide();
     if (m_resultsPanel) m_resultsPanel->hide();
     if (m_plotDock) m_plotDock->hide();
@@ -1854,6 +1859,7 @@ void MainWindow::showGridPropertiesDialog()
 void MainWindow::updateStatus(const QString &msg)
 {
     m_statusLabel->setText(msg);
+    m_statusLabel->setToolTip(msg);
 }
 
 
@@ -3030,9 +3036,14 @@ void MainWindow::createLeftToolbars()
 void MainWindow::createStatusBar()
 {
     m_coordLabel = new QLabel("(x=0, y=0)");
-    m_coordLabel->setMinimumWidth(250);
+    m_coordLabel->setMinimumWidth(180);
     statusBar()->addWidget(m_coordLabel);
     m_statusLabel = new QLabel("Ready");
+    // Hints can be long; a label sizes to its text, which made the whole
+    // window refuse to get narrower than the longest hint. Let it clip
+    // instead (the full text is in the tooltip).
+    m_statusLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    m_statusLabel->setMinimumWidth(40);
     statusBar()->addWidget(m_statusLabel, 1);
     if (m_server && m_server->isListening()) {
         QLabel *ipcLabel = new QLabel(QString("IPC: localhost:%1").arg(m_server->port()));
