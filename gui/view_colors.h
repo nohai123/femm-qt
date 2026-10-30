@@ -101,4 +101,8 @@ ViewColors &viewColors();
 // or the system appearance when it is "follow the system".
 bool femmDarkTheme();
 
+// Density plot colour map (setting pp/colormap): 0 = classic FEMM,
+// 1 = viridis (perceptually uniform, colour-blind safe), 2 = turbo (rainbow)
+int femmColormap();
+
 #endif // VIEW_COLORS_H

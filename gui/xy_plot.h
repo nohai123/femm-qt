@@ -104,8 +104,7 @@ void showPlot(QWidget *parent, const QString &type, const Pts &pts,
     const std::vector<std::string> colNames =
         xyexport::columnLabels(name.toStdString(), ncols);
 
-    auto *pdlg = new PlotDialog(name + titleSuffix, parent);
-    pdlg->setAttribute(Qt::WA_DeleteOnClose);
+    std::vector<PlotSeries> all;
     for (int c = 0; c < ncols; c++) {
         PlotSeries series;
         series.label = (c < (int)colNames.size()) ? QString::fromStdString(colNames[c]) : name;
@@ -113,8 +112,16 @@ void showPlot(QWidget *parent, const QString &type, const Pts &pts,
             series.x.push_back(pt.x);
             series.y.push_back(c < (int)pt.vals.size() ? pt.vals[c] : 0);
         }
-        pdlg->plot()->addSeries(series);
+        all.push_back(series);
     }
+    // Into the docked plot panel when the main window has one
+    if (PlotDock *dock = PlotDock::instance()) {
+        dock->showPlot(name + titleSuffix, all, xAxisLabel, name);
+        return;
+    }
+    auto *pdlg = new PlotDialog(name + titleSuffix, parent);
+    pdlg->setAttribute(Qt::WA_DeleteOnClose);
+    for (const auto &series : all) pdlg->plot()->addSeries(series);
     pdlg->plot()->setAxisLabels(xAxisLabel, name);
     pdlg->show();
 }

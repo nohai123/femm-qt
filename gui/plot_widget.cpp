@@ -13,6 +13,7 @@
 #include <QPen>
 #include <QFontMetrics>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QDialogButtonBox>
 #include <QPushButton>
 #include <QLabel>
@@ -366,4 +367,62 @@ PlotDialog::PlotDialog(const QString &title, QWidget *parent)
     layout->addWidget(m_plot, 1);
     layout->addWidget(m_cursorLabel);
     layout->addWidget(buttons);
+}
+
+// ================================================================
+// PlotDock
+// ================================================================
+
+static PlotDock *s_plotDock = nullptr;
+
+PlotDock *PlotDock::instance() { return s_plotDock; }
+
+PlotDock::PlotDock(QWidget *parent)
+    : QDockWidget(tr("Plot"), parent)
+{
+    setObjectName("PlotDock");
+    s_plotDock = this;
+    auto *w = new QWidget;
+    auto *lay = new QVBoxLayout(w);
+    lay->setContentsMargins(4, 4, 4, 4);
+    m_plot = new PlotWidget;
+    m_plot->setMinimumHeight(160);
+    lay->addWidget(m_plot, 1);
+    auto *row = new QHBoxLayout;
+    m_cursorLabel = new QLabel;
+    m_cursorLabel->setFont(monoFont(8));
+    row->addWidget(m_cursorLabel, 1);
+    auto *exportBtn = new QPushButton(tr("Export..."));
+    connect(exportBtn, &QPushButton::clicked, this, [this]() {
+        QString path = QFileDialog::getSaveFileName(this, tr("Export Plot Data"),
+            QString(), tr("CSV Files (*.csv);;All Files (*)"));
+        if (!path.isEmpty()) m_plot->exportToFile(path, 0);
+    });
+    auto *popBtn = new QPushButton(tr("Window"));
+    popBtn->setToolTip(tr("Open this plot in its own window"));
+    connect(popBtn, &QPushButton::clicked, this, [this]() {
+        auto *dlg = new PlotDialog(m_title, parentWidget());
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        for (const auto &se : m_series) dlg->plot()->addSeries(se);
+        dlg->plot()->setAxisLabels(m_xLabel, m_yLabel);
+        dlg->show();
+    });
+    row->addWidget(exportBtn);
+    row->addWidget(popBtn);
+    lay->addLayout(row);
+    connect(m_plot, &PlotWidget::cursorInfo, m_cursorLabel, &QLabel::setText);
+    setWidget(w);
+}
+
+void PlotDock::showPlot(const QString &title, const std::vector<PlotSeries> &series,
+                        const QString &xLabel, const QString &yLabel)
+{
+    m_title = title; m_series = series; m_xLabel = xLabel; m_yLabel = yLabel;
+    setWindowTitle(tr("Plot") + " \u2014 " + title);
+    m_plot->clearAll();
+    for (const auto &se : series) m_plot->addSeries(se);
+    m_plot->setAxisLabels(xLabel, yLabel);
+    m_plot->update();
+    show();
+    raise();
 }

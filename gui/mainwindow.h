@@ -208,6 +208,9 @@ private:
     class MaterialPicker *m_materialPicker = nullptr;
     class ModelPanel *m_modelPanel = nullptr;
     class ResultsSummaryPanel *m_resultsPanel = nullptr;
+    class PlotDock *m_plotDock = nullptr;
+    class GettingStartedPanel *m_gettingStarted = nullptr;
+    EditorWidget *m_lastEditor = nullptr;   // for the checklist while results show
     class WelcomePage *m_welcome = nullptr;
     class QStackedWidget *m_centralStack = nullptr;
     // Creates a new document from the New Problem dialog's settings.

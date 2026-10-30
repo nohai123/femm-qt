@@ -9,6 +9,7 @@
 #include <QGuiApplication>
 #include <QSettings>
 #include <QStyleHints>
+#include <algorithm>
 
 bool femmDarkTheme()
 {
@@ -104,6 +105,29 @@ void ViewColors::save() const
         settings.setValue(QString("colors/%1").arg(i), c[i].name());
 }
 
+int femmColormap()
+{
+    return QSettings().value("pp/colormap", 0).toInt();
+}
+
+namespace {
+// Anchor colours at 0, 0.1, ..., 1 (low to high)
+const unsigned kViridis[11] = {0x440154, 0x482475, 0x414487, 0x355f8d, 0x2a788e, 0x21918c,
+                               0x22a884, 0x44bf70, 0x7ad151, 0xbddf26, 0xfde725};
+const unsigned kTurbo[11] = {0x30123b, 0x4662d7, 0x36aaf9, 0x1ae4b6, 0x72fe5e, 0xc8ef34,
+                             0xfaba39, 0xf66b19, 0xca2a04, 0x9a0d02, 0x7a0403};
+QColor sampleMap(const unsigned *m, double t)
+{
+    t = std::clamp(t, 0.0, 1.0) * 10;
+    const int i = std::min(9, (int)t);
+    const double f = t - i;
+    const QColor a = QColor::fromRgb(m[i]), b = QColor::fromRgb(m[i + 1]);
+    return QColor::fromRgbF(a.redF() + f * (b.redF() - a.redF()),
+                            a.greenF() + f * (b.greenF() - a.greenF()),
+                            a.blueF() + f * (b.blueF() - a.blueF()));
+}
+} // namespace
+
 void ViewColors::load()
 {
     resetDefaults();  // start with defaults
@@ -128,4 +152,9 @@ void ViewColors::load()
         if (settings.contains(key))
             c[i] = QColor(settings.value(key).toString());
     }
+    // A chosen colour map replaces the density colours (Color00 = highest)
+    const int cm = femmColormap();
+    if (cm == 1 || cm == 2)
+        for (int k = 0; k < 20; k++)
+            c[CI_Color00 + k] = sampleMap(cm == 1 ? kViridis : kTurbo, 1.0 - k / 19.0);
 }

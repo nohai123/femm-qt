@@ -1075,6 +1075,7 @@ void EditorWidget::loadMeshFromData(int numNodes, const double *nx, const double
     m_meshNodes.clear();
     m_meshLines.clear();
     m_greyMeshLines.clear();
+    m_meshTriCount = numTris;
 
     m_meshNodes.resize(numNodes);
     for (int i = 0; i < numNodes; i++)

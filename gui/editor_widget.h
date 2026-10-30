@@ -77,6 +77,7 @@ public:
                           int numTris, const int *triNodes, const int *triRegion);
     void clearMesh();
     int meshNodeCount() const { return (int)m_meshNodes.size(); }
+    int meshElementCount() const { return m_meshTriCount; }
     int meshEdgeCount() const { return (int)m_meshLines.size() + (int)m_greyMeshLines.size(); }
     int greyMeshLineCount() const { return (int)m_greyMeshLines.size(); }
 
@@ -259,6 +260,7 @@ private:
     struct MeshNode { double x, y; };
     struct MeshEdge { int n0, n1; };
     std::vector<MeshNode> m_meshNodes;
+    int m_meshTriCount = 0;
     std::vector<MeshEdge> m_meshLines;     // edges in defined regions (yellow)
     std::vector<MeshEdge> m_greyMeshLines; // edges in undefined regions (grey)
 

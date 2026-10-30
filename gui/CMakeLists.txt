@@ -19,6 +19,8 @@ set(FEMM_GUI_SOURCES
     command_palette.cpp
     sweep_dialog.cpp
     pattern_dialog.cpp
+    report_export.cpp
+    getting_started.cpp
     mouse_release_gate.cpp
     results_widget.cpp
     scalar_results_widget.cpp

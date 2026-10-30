@@ -21,6 +21,10 @@
 #include <QTranslator>
 #include "sweep_dialog.h"
 #include "pattern_dialog.h"
+#include "getting_started.h"
+#include "report_export.h"
+#include "plot_widget.h"
+#include "xy_plot.h"
 #include "py_state.h"
 #include <QProcess>
 #include <QTemporaryDir>
@@ -653,6 +657,53 @@ private slots:
         QVERIFY(found);
         doc->undo();
         QCOMPARE((int)doc->linelist.size(), 4);
+    }
+
+    void gettingStartedTicksOff()
+    {
+        GettingStartedPanel gs;
+        auto text = [&]() { return gs.findChild<QLabel *>()->text(); };
+        gs.refresh(ed, false);
+        QCOMPARE(text().count(QChar(0x2705)), 1);           // problem exists
+        ed->setSketchTool(EditorWidget::SketchRect);
+        click(0, 0); click(2, 2);
+        gs.refresh(ed, false);
+        QCOMPARE(text().count(QChar(0x2705)), 2);           // + closed region
+        FMaterialProp m; m.BlockName = "Air"; doc->blockproplist.push_back(m);
+        doc->AddBlockLabel(1, 1, 1e-3); doc->blocklist.back().BlockType = "Air";
+        gs.refresh(ed, false);
+        QCOMPARE(text().count(QChar(0x2705)), 3);           // + materials
+        const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
+        if (!dir.isEmpty()) { gs.resize(300, 520); gs.show(); QTest::qWait(30); gs.grab().save(dir + "/getting_started.png"); }
+    }
+
+    void reportAndPlotDock()
+    {
+        const QString ans = qEnvironmentVariable("FEMM_GUI_TEST_ANS");
+        if (ans.isEmpty()) QSKIP("FEMM_GUI_TEST_ANS not set");
+        ed->hide();
+        auto *rd = new ResultsDoc;
+        QVERIFY(rd->OpenDocument(ans.toStdString()));
+        ResultsWidget rw(rd);
+        rw.resize(600, 450); rw.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&rw));
+        QTemporaryDir tmp;
+        const QString pdf = tmp.filePath("r.pdf");
+        QVERIFY(exportResultsReport(nullptr, &rw, pdf));
+        QFile f(pdf);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QVERIFY(f.read(5) == "%PDF-");
+        QVERIFY(f.size() > 10000);                          // contains the picture
+
+        // X-Y plots go to the dock when one exists
+        PlotDock dock;
+        struct P { double x; std::vector<double> vals; };
+        std::vector<P> pts{{0, {1}}, {1, {2}}, {2, {1.5}}};
+        xyplot::showAlongContour(nullptr, "|B|", pts);
+        QVERIFY(dock.isVisible());
+        QVERIFY(dock.windowTitle().contains("|B|"));
+        const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
+        if (!dir.isEmpty()) QFile::copy(pdf, dir + "/report.pdf");
     }
 
     void commandPaletteFindsAndRuns()

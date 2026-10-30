@@ -94,6 +94,9 @@
 #include "command_palette.h"
 #include "sweep_dialog.h"
 #include "pattern_dialog.h"
+#include "plot_widget.h"
+#include "report_export.h"
+#include "getting_started.h"
 #include <QStackedWidget>
 #include <QLockFile>
 #include <QStandardPaths>
@@ -255,6 +258,16 @@ MainWindow::MainWindow(TcpServer *server, QWidget *parent)
     connect(m_resultsPanel->toggleViewAction(), &QAction::triggered, this, [](bool on) {
         QSettings().setValue("ui/resultsPanel", on);
     });
+
+    // Getting Started checklist (Help menu; shown with the first new model)
+    m_gettingStarted = new GettingStartedPanel(this);
+    addDockWidget(Qt::LeftDockWidgetArea, m_gettingStarted);
+    m_gettingStarted->hide();
+
+    // Plot panel under the postprocessor (X-Y plots along contours)
+    m_plotDock = new PlotDock(this);
+    addDockWidget(Qt::BottomDockWidgetArea, m_plotDock);
+    m_plotDock->hide();
 
     createCommonMenus();
     createPreprocessorUI();
@@ -1088,6 +1101,7 @@ void MainWindow::showEmptyUI()
     if (m_centralStack) { m_welcome->refresh(); m_centralStack->setCurrentWidget(m_welcome); }
     if (m_modelPanel) m_modelPanel->hide();
     if (m_resultsPanel) m_resultsPanel->hide();
+    if (m_plotDock) m_plotDock->hide();
     // Hide document-specific UI but keep File toolbar (New/Open)
     m_preTopBar1->show();
     m_preTopBar2->hide();
@@ -1118,6 +1132,7 @@ void MainWindow::showPreprocessorUI()
     if (m_centralStack) m_centralStack->setCurrentWidget(m_mdiArea);
     if (m_modelPanel) m_modelPanel->setVisible(QSettings().value("ui/modelPanel", true).toBool());
     if (m_resultsPanel) m_resultsPanel->hide();
+    if (m_plotDock) m_plotDock->hide();
     m_actSave->setVisible(true);
     m_actSaveAs->setVisible(true);
     m_preTopBar1->show();
@@ -1334,6 +1349,10 @@ void MainWindow::createNewProblem(int physics, bool askSettings)
         e->setFillMaterial(QString::fromUtf8(air[doctype]));
     }
     e->markSaved();
+    if (!QSettings().value("ui/gettingStartedShown", false).toBool()) {
+        QSettings().setValue("ui/gettingStartedShown", true);
+        m_gettingStarted->show();
+    }
     e->setSketchTool(EditorWidget::SketchRect);
     e->setFocus();
     syncPreprocessorMenus(e);
@@ -1589,9 +1608,16 @@ void MainWindow::onCreateMesh()
     }
     else {
         // Mesh data was passed directly via callback — no file I/O needed
-        QString msg = QString("Created mesh with %1 nodes").arg(e->meshNodeCount());
+        const int nodes = e->meshNodeCount(), elems = e->meshElementCount();
+        QString msg = tr("Mesh: %1 nodes, %2 elements").arg(nodes).arg(elems);
         if (e->greyMeshLineCount() > 0)
-            msg += " (grey lines = regions with no block label)";
+            msg += tr(" -- grey = regions with no block label");
+        // A rough sense of scale: very coarse meshes give poor field values,
+        // very fine ones take long to solve
+        if (elems > 0 && elems < 1000)
+            msg += tr(" -- coarse: refine the mesh size of important regions for accurate results");
+        else if (elems > 300000)
+            msg += tr(" -- very fine: solving will take a while");
         updateStatus(msg);
     }
 }
@@ -2534,6 +2560,22 @@ void MainWindow::createPostprocessorUI()
     // --- Menus ---
     m_ppMenuView = menuBar()->addMenu(tr("&View"));
     m_ppMenuView->addAction(m_resultsPanel->toggleViewAction());
+    m_ppMenuView->addAction(m_plotDock->toggleViewAction());
+    {
+        QMenu *cm = m_ppMenuView->addMenu(tr("Color &Map"));
+        auto *grp = new QActionGroup(this);
+        const char *names[] = {QT_TR_NOOP("Classic FEMM"), QT_TR_NOOP("Viridis (colour-blind safe)"), QT_TR_NOOP("Turbo (rainbow)")};
+        for (int i = 0; i < 3; i++) {
+            QAction *a = cm->addAction(tr(names[i]));
+            a->setCheckable(true);
+            a->setChecked(femmColormap() == i);
+            grp->addAction(a);
+            connect(a, &QAction::triggered, this, [this, i]() {
+                QSettings().setValue("pp/colormap", i);
+                applyTheme();
+            });
+        }
+    }
     m_ppMenuView->addSeparator();
     m_ppActDensity = m_ppMenuView->addAction(tr("&Density Plot"));
     m_ppActDensity->setCheckable(true); m_ppActDensity->setChecked(true);
@@ -2602,6 +2644,25 @@ void MainWindow::createPostprocessorUI()
     });
 
     m_ppMenuOperation = menuBar()->addMenu(tr("O&peration"));
+    m_ppMenuOperation->addAction(tr("Export &Report (PDF)..."), QKeySequence(), [this]() {
+        QWidget *view = activeResults() ? (QWidget *)activeResults() : (QWidget *)activeScalarResults();
+        if (!view) return;
+        QString suggest = QSettings().value("lastDirectory").toString() + "/report.pdf";
+        const QString path = QFileDialog::getSaveFileName(this, tr("Export Report"), suggest, tr("PDF (*.pdf)"));
+        if (path.isEmpty()) return;
+        if (exportResultsReport(this, view, path)) updateStatus(tr("Report written to %1").arg(path));
+    });
+    m_ppMenuOperation->addAction(tr("Compare with &Another Solution..."), QKeySequence(), [this]() {
+        const QString path = QFileDialog::getOpenFileName(this, tr("Compare With"),
+            QSettings().value("lastDirectory").toString(),
+            tr("Solution Files (*.ans *.res *.anh *.anc)"));
+        if (path.isEmpty()) return;
+        openResultsFile(path);
+        // Side by side instead of tabs (Window > Tabs goes back)
+        m_mdiArea->setViewMode(QMdiArea::SubWindowView);
+        m_mdiArea->tileSubWindows();
+    });
+    m_ppMenuOperation->addSeparator();
     m_ppMenuOperation->addAction(tr("&Point Values"), QKeySequence(), this, &MainWindow::onPPPointMode);
     m_ppMenuOperation->addAction(tr("&Contours"), QKeySequence(), this, &MainWindow::onPPContourMode);
     m_ppMenuOperation->addAction(tr("&Areas"), QKeySequence(), this, &MainWindow::onPPAreaMode);
@@ -2837,13 +2898,21 @@ void MainWindow::createLeftToolbars()
     }
     QMenu *window = m_windowMenu;
     window->addAction(tr("&Cascade"), QKeySequence(), [this]() { m_mdiArea->cascadeSubWindows(); });
-    window->addAction(tr("&Tile"), QKeySequence(), [this]() { m_mdiArea->tileSubWindows(); });
-    window->addSeparator();
+    window->addAction(tr("&Tile"), QKeySequence(), [this]() {
+        m_mdiArea->setViewMode(QMdiArea::SubWindowView);
+        m_mdiArea->tileSubWindows();
+    });
+    window->addAction(tr("T&abs"), QKeySequence(), [this]() {
+        m_mdiArea->setViewMode(QMdiArea::TabbedView);
+        for (auto *sub : m_mdiArea->subWindowList()) sub->showMaximized();
+    });
+    QAction *listStart = window->addSeparator();
     // Dynamically populate with open windows when menu is shown
-    connect(window, &QMenu::aboutToShow, [this, window]() {
-        // Remove old dynamic entries (after the separator)
+    connect(window, &QMenu::aboutToShow, [this, window, listStart]() {
+        // Remove old dynamic entries: everything after the separator
         auto actions = window->actions();
-        for (int i = 3; i < actions.size(); i++)  // skip Cascade, Tile, separator
+        const int first = actions.indexOf(listStart) + 1;
+        for (int i = first; i > 0 && i < actions.size(); i++)
             window->removeAction(actions[i]);
         // Add current subwindows
         auto subs = m_mdiArea->subWindowList();
@@ -2860,6 +2929,7 @@ void MainWindow::createLeftToolbars()
     });
 
     QMenu *help = menuBar()->addMenu(tr("&Help"));
+    help->addAction(tr("&Getting Started"), QKeySequence(), [this]() { m_gettingStarted->show(); m_gettingStarted->raise(); });
     // Cmd+K (Ctrl+K): run any command by name
     help->addAction(tr("Command Palette..."), QKeySequence(Qt::CTRL | Qt::Key_K), this, [this]() {
         CommandPalette pal(menuBar(), this);
@@ -3354,6 +3424,14 @@ void MainWindow::applyTheme()
 void MainWindow::refreshModifiedMarks()
 {
     if (m_modelPanel && m_modelPanel->isVisible()) m_modelPanel->refresh(activeEditor());
+    if (auto *e = activeEditor()) m_lastEditor = e;
+    if (m_lastEditor) {
+        bool alive = false;
+        for (auto *sub : m_mdiArea->subWindowList()) alive |= sub->widget() == m_lastEditor;
+        if (!alive) m_lastEditor = nullptr;
+    }
+    if (m_gettingStarted && m_gettingStarted->isVisible())
+        m_gettingStarted->refresh(m_lastEditor, m_lastEditor && m_lastEditor->property("femmAnalyzedSerial").isValid());
     if (m_resultsPanel) {
         // Magnetics only (circuits); shown with a magnetics results tab
         auto *rw = (m_uiState == 1) ? activeResults() : nullptr;

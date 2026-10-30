@@ -9,6 +9,8 @@
 
 #include <QWidget>
 #include <QDialog>
+#include <QDockWidget>
+#include <functional>
 #include <QString>
 #include <vector>
 
@@ -76,6 +78,24 @@ public:
 private:
     PlotWidget *m_plot;
     QLabel *m_cursorLabel;
+};
+
+// Plot panel docked under the postprocessor. X-Y plots along a contour land
+// here instead of in a separate window, so the field view and the curve are
+// seen together; "Window" still pops the current plot out.
+class PlotDock : public QDockWidget {
+    Q_OBJECT
+public:
+    explicit PlotDock(QWidget *parent = nullptr);
+    void showPlot(const QString &title, const std::vector<PlotSeries> &series,
+                  const QString &xLabel, const QString &yLabel);
+    // Where plots go: the dock when one is registered and enabled
+    static PlotDock *instance();
+private:
+    PlotWidget *m_plot;
+    QLabel *m_cursorLabel;
+    std::vector<PlotSeries> m_series;
+    QString m_title, m_xLabel, m_yLabel;
 };
 
 #endif // PLOT_WIDGET_H
