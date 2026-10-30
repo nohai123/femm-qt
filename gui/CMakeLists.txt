@@ -12,6 +12,7 @@ set(FEMM_GUI_SOURCES
     region_map.cpp
     material_picker.cpp
     problem_check.cpp
+    model_panel.cpp
     mouse_release_gate.cpp
     results_widget.cpp
     scalar_results_widget.cpp

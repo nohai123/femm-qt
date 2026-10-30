@@ -10,6 +10,10 @@
 #include "editor_widget.h"
 #include "mag_document.h"
 #include "problem_check.h"
+#include "model_panel.h"
+#include "material_picker.h"
+#include <QTreeWidget>
+#include <QSpinBox>
 
 #include <QApplication>
 #include <QtTest/QtTest>
@@ -305,6 +309,44 @@ private slots:
         doc->blocklist.back().IsDefault = true;
         is = checkProblem(ed);
         for (auto &i : is) QVERIFY(i.severity != ProblemIssue::Error);
+    }
+
+    void modelPanelSelectsAndEdits()
+    {
+        buildSquareWithCircle();
+        for (const char *n : {"Air", "Pure Iron"}) {
+            FMaterialProp m; m.BlockName = n; doc->blockproplist.push_back(m);
+        }
+        doc->AddBlockLabel(0.5, 0.5, 1e-3); doc->blocklist.back().BlockType = "Air";
+        doc->AddBlockLabel(2.2, 2.2, 1e-3); doc->blocklist.back().BlockType = "Air";
+
+        ModelPanel panel;
+        panel.ensureMaterial = [](EditorWidget *, const QString &) { return true; };
+        panel.show();
+        panel.refresh(ed);
+        auto *tree = panel.findChild<QTreeWidget *>();
+        QVERIFY(tree);
+        QTreeWidgetItem *mats = tree->topLevelItem(0);
+        QCOMPARE(mats->childCount(), 2);
+        QCOMPARE(mats->child(0)->text(1), QString("2"));   // Air used twice
+        // Clicking "Air" selects both labels
+        emit tree->itemClicked(mats->child(0), 0);
+        QCOMPARE((int)doc->blocklist[0].IsSelected + (int)doc->blocklist[1].IsSelected, 2);
+        // Inspector: change material of the selection
+        doc->blocklist[0].IsSelected = false;
+        panel.refresh(ed);
+        MaterialPicker *mp = nullptr;
+        for (auto *p : panel.findChildren<MaterialPicker *>()) mp = p;
+        QVERIFY(mp);
+        mp->setDocument(doc);
+        emit mp->materialChosen("Pure Iron");
+        QCOMPARE(QString::fromStdString(doc->blocklist[1].BlockType), QString("Pure Iron"));
+        QCOMPARE(QString::fromStdString(doc->blocklist[0].BlockType), QString("Air"));
+        doc->undo();
+        QCOMPARE(QString::fromStdString(doc->blocklist[1].BlockType), QString("Air"));
+
+        const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
+        if (!dir.isEmpty()) { panel.resize(260, 420); panel.refresh(ed); panel.grab().save(dir + "/model_panel.png"); }
     }
 
     // Not a check: with FEMM_GUI_TEST_SHOTS=<dir> set, saves pictures of the

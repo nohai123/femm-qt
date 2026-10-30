@@ -87,6 +87,7 @@
 #include "dxf_io.h"
 #include "material_picker.h"
 #include "problem_check.h"
+#include "model_panel.h"
 
 static bool femmOpenable(const QString &path);
 
@@ -173,11 +174,29 @@ MainWindow::MainWindow(TcpServer *server, QWidget *parent)
         "}"
     );
 
+    // Model panel: materials / boundaries / circuits + selection inspector
+    m_modelPanel = new ModelPanel(this);
+    addDockWidget(Qt::RightDockWidgetArea, m_modelPanel);
+    m_modelPanel->openPropertyList = [this](int type) {
+        auto *e = activeEditor();
+        if (!e || !e->document()) return;
+        PropertyListDialog dlg(e->document(), type, this);
+        dlg.exec();
+        e->update();
+    };
+    m_modelPanel->openMaterialLibrary = [this]() { if (m_actMaterialLibrary) m_actMaterialLibrary->trigger(); };
+    m_modelPanel->ensureMaterial = [this](EditorWidget *e, const QString &n) { return ensureMaterial(e, n); };
+    m_modelPanel->hide();
+    connect(m_modelPanel->toggleViewAction(), &QAction::triggered, this, [](bool on) {
+        QSettings().setValue("ui/modelPanel", on);
+    });
+
     createCommonMenus();
     createPreprocessorUI();
     createPostprocessorUI();
     createLeftToolbars();
     createStatusBar();
+
 
     // Python console: constructed eagerly (hidden) so the interpreter's
     // VM-loop hook is installed even if the user never opens the console.
@@ -979,6 +998,7 @@ void MainWindow::onSubWindowActivated(QMdiSubWindow *sub)
 void MainWindow::showEmptyUI()
 {
     m_uiState = -1;
+    if (m_modelPanel) m_modelPanel->hide();
     // Hide document-specific UI but keep File toolbar (New/Open)
     m_preTopBar1->show();
     m_preTopBar2->hide();
@@ -1006,6 +1026,7 @@ void MainWindow::showEmptyUI()
 void MainWindow::showPreprocessorUI()
 {
     m_uiState = 0;
+    if (m_modelPanel) m_modelPanel->setVisible(QSettings().value("ui/modelPanel", true).toBool());
     m_actSave->setVisible(true);
     m_actSaveAs->setVisible(true);
     m_preTopBar1->show();
@@ -1035,6 +1056,7 @@ void MainWindow::showPreprocessorUI()
 void MainWindow::showPostprocessorUI()
 {
     m_uiState = 1;
+    if (m_modelPanel) m_modelPanel->hide();
     m_actSave->setVisible(false);
     m_actSaveAs->setVisible(false);
     m_preTopBar1->show();  // New/Open buttons visible in postprocessor too (matching OF)
@@ -1903,6 +1925,7 @@ void MainWindow::createPreprocessorUI()
         auto *e = activeEditor(); if (e) e->panDown();
     });
     m_preMenuView->addSeparator();
+    m_preMenuView->addAction(m_modelPanel->toggleViewAction());
     m_fillRegionsMenu = m_preMenuView->addAction(tr("&Fill Regions by Material"));
     m_fillRegionsMenu->setCheckable(true);
     m_fillRegionsMenu->setChecked(QSettings().value("editor/fillRegions", true).toBool());
@@ -2073,7 +2096,7 @@ void MainWindow::createPreprocessorUI()
         }
     });
     m_preMenuProperties->addSeparator();
-    m_preMenuProperties->addAction(tr("Materials &Library..."), QKeySequence(), [this]() {
+    m_actMaterialLibrary = m_preMenuProperties->addAction(tr("Materials &Library..."), QKeySequence(), [this]() {
         auto *e = activeEditor();
         if (!e || !e->document()) return;
         if (e->document()->physicsType() == 1) {
@@ -2983,6 +3006,8 @@ bool MainWindow::confirmDiscard(QMdiSubWindow *sub)
 
 void MainWindow::refreshModifiedMarks()
 {
+    if (m_modelPanel && m_modelPanel->isVisible()) m_modelPanel->refresh(activeEditor());
+
     // Results tabs whose model has been edited since it was analysed say so.
     static const QString outdated = tr(" (outdated)");
     QHash<QString, bool> stale;   // model base name -> edited since analysis

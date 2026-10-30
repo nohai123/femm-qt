@@ -203,6 +203,8 @@ private:
     // CAD-style sketch tools (EditorWidget::SketchTool 1..4), same exclusive group
     QAction *m_actSketch[6] = {};
     class MaterialPicker *m_materialPicker = nullptr;
+    class ModelPanel *m_modelPanel = nullptr;
+    QAction *m_actMaterialLibrary = nullptr;
     QAction *m_fillRegionsMenu = nullptr;
     // Copies a library material into the active document if it lacks it.
     bool ensureMaterial(EditorWidget *editor, const QString &name);

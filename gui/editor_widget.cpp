@@ -1138,6 +1138,23 @@ void EditorWidget::drawMesh(QPainter &p)
 // Open properties for selected entities (Space bar)
 // ================================================================
 
+void EditorWidget::openSelectedAs(int action)
+{
+    if (!m_doc) return;
+    const int keep = m_editAction;
+    if (action == 1) {
+        // Segments and arcs are separate modes; open whichever is selected
+        bool seg = false;
+        for (const auto &s : m_doc->linelist) seg |= s.IsSelected;
+        m_editAction = seg ? 1 : 3;
+    } else {
+        m_editAction = action;
+    }
+    openSelected();
+    m_editAction = keep;
+    update();
+}
+
 void EditorWidget::openSelected()
 {
     if (!m_doc) return;

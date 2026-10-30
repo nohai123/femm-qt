@@ -111,6 +111,9 @@ public:
 
     // Open properties for selected entities (space bar)
     void openSelected();
+    // Same, for one entity type (0 nodes, 1 segments+arcs, 2 block labels)
+    // regardless of the current mode. Used by the Model panel.
+    void openSelectedAs(int action);
 
 signals:
     void coordinatesChanged(double x, double y);
