@@ -14,6 +14,10 @@
 #include "results_widget.h"
 #include "results_doc.h"
 #include "results_summary.h"
+#include "welcome_page.h"
+#include <QListWidget>
+#include <QToolButton>
+#include <QSignalSpy>
 #include <QTableWidget>
 #include "material_picker.h"
 #include <QTreeWidget>
@@ -415,6 +419,31 @@ private slots:
             QCOMPARE(t->item(k, 0)->text(), QString::fromStdString(rd.circproplist[k].CircName));
         panel.refresh(nullptr);
         QCOMPARE(t->rowCount(), 0);
+    }
+
+    void newProblemDialogAndWelcome()
+    {
+        ed->hide();
+        NewProblemDialog dlg(3);
+        auto st = dlg.settings();
+        QCOMPARE(st.physics, 3);
+        QCOMPARE(st.frequency, 60.0);       // current flow defaults to 60 Hz
+        WelcomePage wp;
+        wp.resize(1000, 640);
+        wp.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&wp));
+        QSignalSpy spy(&wp, &WelcomePage::newProblem);
+        QList<QToolButton *> buttons;   // the four "New" tiles (not the search field's clear button)
+        for (auto *b : wp.findChildren<QToolButton *>()) if (b->text().contains('\n')) buttons << b;
+        QCOMPARE(buttons.size(), 4);
+        buttons[1]->click();
+        QCOMPARE(spy.count(), 1);
+        QCOMPARE(spy.at(0).at(0).toInt(), 1);
+        const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
+        if (!dir.isEmpty()) {
+            wp.grab().save(dir + "/welcome.png");
+            dlg.show(); QTest::qWait(30); dlg.grab().save(dir + "/new_problem.png");
+        }
     }
 
     // Not a check: with FEMM_GUI_TEST_SHOTS=<dir> set, saves pictures of the

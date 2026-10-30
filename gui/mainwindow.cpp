@@ -89,6 +89,8 @@
 #include "problem_check.h"
 #include "model_panel.h"
 #include "results_summary.h"
+#include "welcome_page.h"
+#include <QStackedWidget>
 
 static bool femmOpenable(const QString &path);
 
@@ -165,7 +167,16 @@ MainWindow::MainWindow(TcpServer *server, QWidget *parent)
     m_mdiArea->setTabsClosable(true);
     m_mdiArea->setTabPosition(QTabWidget::South);
     m_mdiArea->setDocumentMode(true);
-    setCentralWidget(m_mdiArea);
+
+    // Welcome page while no document is open, the documents otherwise
+    m_welcome = new WelcomePage;
+    connect(m_welcome, &WelcomePage::newProblem, this, [this](int ph) { createNewProblem(ph, true); });
+    connect(m_welcome, &WelcomePage::openFile, this, [this](const QString &p) { openPath(p); });
+    connect(m_welcome, &WelcomePage::openOther, this, &MainWindow::onOpen);
+    m_centralStack = new QStackedWidget;
+    m_centralStack->addWidget(m_welcome);
+    m_centralStack->addWidget(m_mdiArea);
+    setCentralWidget(m_centralStack);
 
     // Style checked toolbar buttons
     setStyleSheet(
@@ -1007,6 +1018,7 @@ void MainWindow::onSubWindowActivated(QMdiSubWindow *sub)
 void MainWindow::showEmptyUI()
 {
     m_uiState = -1;
+    if (m_centralStack) { m_welcome->refresh(); m_centralStack->setCurrentWidget(m_welcome); }
     if (m_modelPanel) m_modelPanel->hide();
     if (m_resultsPanel) m_resultsPanel->hide();
     // Hide document-specific UI but keep File toolbar (New/Open)
@@ -1036,6 +1048,7 @@ void MainWindow::showEmptyUI()
 void MainWindow::showPreprocessorUI()
 {
     m_uiState = 0;
+    if (m_centralStack) m_centralStack->setCurrentWidget(m_mdiArea);
     if (m_modelPanel) m_modelPanel->setVisible(QSettings().value("ui/modelPanel", true).toBool());
     if (m_resultsPanel) m_resultsPanel->hide();
     m_actSave->setVisible(true);
@@ -1067,6 +1080,7 @@ void MainWindow::showPreprocessorUI()
 void MainWindow::showPostprocessorUI()
 {
     m_uiState = 1;
+    if (m_centralStack) m_centralStack->setCurrentWidget(m_mdiArea);
     if (m_modelPanel) m_modelPanel->hide();
     m_actSave->setVisible(false);
     m_actSaveAs->setVisible(false);
@@ -1213,31 +1227,49 @@ void MainWindow::syncPreprocessorMenus(EditorWidget *editor)
 
 void MainWindow::onNew()
 {
-    QStringList types;
-    types << tr("Magnetics Problem")
-          << tr("Electrostatics Problem")
-          << tr("Heat Flow Problem")
-          << tr("Current Flow Problem");
-    bool ok;
-    QString choice = QInputDialog::getItem(this, tr("New Document"),
-        tr("Select problem type:"), types, 0, false, &ok);
-    if (!ok) return;
-    int doctype = types.indexOf(choice);
+    createNewProblem(QSettings().value("defaults/physics", 0).toInt(), true);
+}
+
+void MainWindow::createNewProblem(int physics, bool askSettings)
+{
+    NewProblemSettings ns;
+    ns.physics = physics;
+    if (askSettings) {
+        NewProblemDialog dlg(physics, this);
+        if (dlg.exec() != QDialog::Accepted) return;
+        ns = dlg.settings();
+        QSettings st;
+        st.setValue("defaults/physics", ns.physics);
+        st.setValue("defaults/lengthUnits", ns.lengthUnits);
+        st.setValue("defaults/problemType", ns.problemType);
+    }
+    const int doctype = ns.physics;
     char cmd[64];
     snprintf(cmd, sizeof(cmd), "newdocument(%d)", doctype);
     char errmsg[256] = {};
     exec_python(cmd, errmsg, sizeof(errmsg));
 
+    auto *e = activeEditor();
+    if (!e || !e->document()) return;
+    DocumentBase *doc = e->document();
+    doc->LengthUnits = ns.lengthUnits;
+    doc->ProblemType = ns.problemType;
+    if (ns.problemType == 0) doc->Depth = ns.depth;
+    if (auto *mag = dynamic_cast<MagDocument *>(doc)) mag->Frequency = ns.frequency;
+    if (auto *curr = dynamic_cast<CurrDocument *>(doc)) if (askSettings) curr->Frequency = ns.frequency;
+
     // Start with the surrounding medium already in the model -- nearly every
     // problem needs it, and an empty material list is the first stumbling
     // block. (Only from File > New: scripts get the empty document they ask for.)
     static const char *air[] = {"Air", "Air (dry, CO2-free)", "Air", nullptr};
-    if (auto *e = activeEditor(); e && doctype >= 0 && doctype < 4 && air[doctype]) {
+    if (doctype >= 0 && doctype < 4 && air[doctype]) {
         ensureMaterial(e, QString::fromUtf8(air[doctype]));
         e->setFillMaterial(QString::fromUtf8(air[doctype]));
-        e->markSaved();
-        syncPreprocessorMenus(e);
     }
+    e->markSaved();
+    e->setSketchTool(EditorWidget::SketchRect);
+    e->setFocus();
+    syncPreprocessorMenus(e);
 }
 
 bool MainWindow::ensureMaterial(EditorWidget *editor, const QString &name)
