@@ -110,7 +110,17 @@ static bool femmOpenable(const QString &path);
 
 static QIcon icon(const char *name)
 {
-    return QIcon(QString(":/icons/%1.png").arg(name));
+    // The classic icons are 16x15 bitmaps. On a Retina screen Qt would blow
+    // them up with smoothing and they turn to mush; a 2x copy scaled
+    // pixel-for-pixel keeps them crisp.
+    const QPixmap px(QString(":/icons/%1.png").arg(name));
+    QIcon ic(px);
+    if (!px.isNull()) {
+        QPixmap px2 = px.scaled(px.size() * 2, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        px2.setDevicePixelRatio(2);
+        ic.addPixmap(px2);
+    }
+    return ic;
 }
 
 // Line-art icons for the sketch tools, painted at 1x and 2x so they stay

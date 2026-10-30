@@ -54,6 +54,8 @@ private:
     QCheckBox *m_nonlinear;
     QLabel *m_muLabel, *m_hcLabel, *m_wireLabel;
     QPushButton *m_bhButton;
+    class PlotWidget *m_bhPreview = nullptr;   // small B-H curve below the button
+    void updateBHPreview();
 };
 
 // ================================================================

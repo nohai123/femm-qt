@@ -5,6 +5,7 @@
 // Ported from femm42src/femm MatDlg.cpp, BdryDlg.cpp, CircProp.cpp, NodeProp.cpp
 
 #include "prop_editors.h"
+#include "plot_widget.h"
 #include "bh_dialog.h"
 #include "complex_fmt.h"
 #include "py_line_edit.h"
@@ -118,6 +119,10 @@ MaterialEditorDialog::MaterialEditorDialog(QWidget *parent) : QDialog(parent)
     m_bhButton->setEnabled(false);
     form->addRow(m_bhButton);
     connect(m_bhButton, &QPushButton::clicked, this, &MaterialEditorDialog::onEditBHCurve);
+    m_bhPreview = new PlotWidget;
+    m_bhPreview->setFixedHeight(150);
+    m_bhPreview->hide();
+    form->addRow(m_bhPreview);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
@@ -217,6 +222,7 @@ void MaterialEditorDialog::onNonlinearToggled(bool on)
     m_Theta_hy->setEnabled(!on);
     m_bhButton->setEnabled(on);
     m_Theta_hn->setEnabled(on);
+    updateBHPreview();
 
     // A wire can't carry a B-H curve; if one is selected when nonlinear is
     // turned on, revert the material type to "Not laminated".
@@ -239,6 +245,22 @@ void MaterialEditorDialog::onEditBHCurve()
     if (dlg.exec() == QDialog::Accepted) {
         dlg.getData(m_bhB, m_bhH, m_bhPoints);
     }
+    updateBHPreview();
+}
+
+void MaterialEditorDialog::updateBHPreview()
+{
+    if (!m_bhPreview) return;
+    const bool show = m_nonlinear->isChecked() && m_bhPoints > 1;
+    m_bhPreview->setVisible(show);
+    if (!show) return;
+    m_bhPreview->clearAll();
+    PlotSeries s;
+    s.label = tr("B-H Curve");
+    for (int i = 0; i < m_bhPoints; i++) { s.x.push_back(m_bhH[i]); s.y.push_back(m_bhB[i]); }
+    m_bhPreview->addSeries(s);
+    m_bhPreview->setAxisLabels("H, A/m", "B, T");
+    m_bhPreview->update();
 }
 
 void MaterialEditorDialog::fromProp(const FMaterialProp &m)
@@ -295,6 +317,7 @@ void MaterialEditorDialog::fromProp(const FMaterialProp &m)
         m_bhB[i] = m.BHdata[i].re;  // B is stored in .re
         m_bhH[i] = m.BHdata[i].im;  // H is stored in .im
     }
+    updateBHPreview();
 }
 
 void MaterialEditorDialog::toProp(FMaterialProp &m) const

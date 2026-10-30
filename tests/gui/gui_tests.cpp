@@ -22,6 +22,7 @@
 #include "sweep_dialog.h"
 #include "pattern_dialog.h"
 #include "getting_started.h"
+#include "prop_editors.h"
 #include "report_export.h"
 #include "plot_widget.h"
 #include "xy_plot.h"
@@ -784,6 +785,24 @@ private slots:
         doc->pushUndo();
         doc->dropLastUndo();
         QCOMPARE(doc->editSerial, serial);
+    }
+
+    void bhPreviewShown()
+    {
+        ed->hide();
+        FMaterialProp m;
+        m.BlockName = "Steel";
+        const double B[] = {0, 0.5, 1.0, 1.4, 1.6, 1.8}, H[] = {0, 80, 200, 600, 2000, 10000};
+        for (int i = 0; i < 6; i++) m.BHdata.push_back(CComplex(B[i], H[i]));
+        m.BHpoints = 6;
+        MaterialEditorDialog dlg;
+        dlg.fromProp(m);
+        dlg.show();
+        QTest::qWait(30);
+        auto *pw = dlg.findChild<PlotWidget *>();
+        QVERIFY(pw && pw->isVisible());
+        const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
+        if (!dir.isEmpty()) dlg.grab().save(dir + "/bh_preview.png");
     }
 
     void commandPaletteFindsAndRuns()
