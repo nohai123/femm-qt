@@ -715,6 +715,78 @@
         <source>Mesh sizes doubled</source>
         <translation>Netzgrößen verdoppelt</translation>
     </message>
+    <message>
+        <source>Trim: click a piece of a line or arc (between crossings) to remove it.</source>
+        <translation>Trimmen: ein Stück einer Linie oder eines Bogens (zwischen Schnittpunkten) anklicken, um es zu entfernen.</translation>
+    </message>
+    <message>
+        <source>Offset: click a contour, then move to the side and click -- or type the distance + Enter.</source>
+        <translation>Offset: Kontur anklicken, dann zur Seite bewegen und klicken – oder Abstand tippen + Enter.</translation>
+    </message>
+    <message>
+        <source>Dimension: click a line to set its length, an arc or circle to set its radius.</source>
+        <translation>Bemaßung: Linie anklicken, um ihre Länge festzulegen, Bogen oder Kreis für den Radius.</translation>
+    </message>
+    <message>
+        <source>Click on a line or arc piece to remove it.</source>
+        <translation>Ein Linien- oder Bogenstück anklicken, um es zu entfernen.</translation>
+    </message>
+    <message>
+        <source>Piece removed.</source>
+        <translation>Stück entfernt.</translation>
+    </message>
+    <message>
+        <source>Click on the contour to offset.</source>
+        <translation>Die Kontur anklicken, die versetzt werden soll.</translation>
+    </message>
+    <message>
+        <source>Offset: move to the side and click, or type the distance + Enter. Esc cancels.</source>
+        <translation>Offset: zur Seite bewegen und klicken oder Abstand tippen + Enter. Esc bricht ab.</translation>
+    </message>
+    <message>
+        <source>Offset too large for an arc in the contour.</source>
+        <translation>Offset zu groß für einen Bogen der Kontur.</translation>
+    </message>
+    <message>
+        <source>Offset %1 created.</source>
+        <translation>Offset %1 erstellt.</translation>
+    </message>
+    <message>
+        <source>Click a line to set its length, or an arc/circle to set its radius.</source>
+        <translation>Linie anklicken für die Länge, Bogen/Kreis für den Radius.</translation>
+    </message>
+    <message>
+        <source>Length</source>
+        <translation>Länge</translation>
+    </message>
+    <message>
+        <source>New length:</source>
+        <translation>Neue Länge:</translation>
+    </message>
+    <message>
+        <source>Length set to %1.</source>
+        <translation>Länge auf %1 gesetzt.</translation>
+    </message>
+    <message>
+        <source>Circle Radius</source>
+        <translation>Kreisradius</translation>
+    </message>
+    <message>
+        <source>Arc Radius</source>
+        <translation>Bogenradius</translation>
+    </message>
+    <message>
+        <source>New radius:</source>
+        <translation>Neuer Radius:</translation>
+    </message>
+    <message>
+        <source>The radius must be at least half the chord (%1).</source>
+        <translation>Der Radius muss mindestens die halbe Sehne (%1) sein.</translation>
+    </message>
+    <message>
+        <source>Radius set to %1.</source>
+        <translation>Radius auf %1 gesetzt.</translation>
+    </message>
 </context>
 <context>
     <name>ElecBoundaryEditorDialog</name>
@@ -952,6 +1024,81 @@
     <message>
         <source>Vector type:</source>
         <translation>Vektortyp:</translation>
+    </message>
+</context>
+<context>
+    <name>GettingStartedPanel</name>
+    <message>
+        <source>Getting Started</source>
+        <translation>Erste Schritte</translation>
+    </message>
+    <message>
+        <source>Create a problem</source>
+        <translation>Problem anlegen</translation>
+    </message>
+    <message>
+        <source>File &amp;gt; New, or a tile on the start page.</source>
+        <translation>Datei &amp;gt; Neu oder eine Kachel auf der Startseite.</translation>
+    </message>
+    <message>
+        <source>Draw closed regions</source>
+        <translation>Geschlossene Bereiche zeichnen</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;R&lt;/b&gt; rectangle, &lt;b&gt;C&lt;/b&gt; circle, &lt;b&gt;L&lt;/b&gt; polyline (click the start point to close). Exact sizes: type them while drawing. Each closed area becomes a region.</source>
+        <translation>&lt;b&gt;R&lt;/b&gt; Rechteck, &lt;b&gt;C&lt;/b&gt; Kreis, &lt;b&gt;L&lt;/b&gt; Polylinie (Startpunkt anklicken schließt). Genaue Maße beim Zeichnen tippen. Jede geschlossene Fläche wird ein Bereich.</translation>
+    </message>
+    <message>
+        <source>Give every region a material</source>
+        <translation>Jedem Bereich ein Material geben</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;F&lt;/b&gt; (Assign Material): pick a material in the toolbar, click into each region. Red hatching = still missing.</source>
+        <translation>&lt;b&gt;F&lt;/b&gt; (Material zuweisen): Material in der Werkzeugleiste wählen, in jeden Bereich klicken. Rote Schraffur = fehlt noch.</translation>
+    </message>
+    <message>
+        <source>Add a source</source>
+        <translation>Eine Quelle hinzufügen</translation>
+    </message>
+    <message>
+        <source>Properties &amp;gt; Circuits: add one with a current, then select the coil region and set circuit and turns in the Model panel. Or use a magnet material.</source>
+        <translation>Eigenschaften &amp;gt; Stromkreise: einen mit Strom anlegen, dann den Spulenbereich wählen und im Modell-Panel Stromkreis und Windungen setzen. Oder ein Magnetmaterial verwenden.</translation>
+    </message>
+    <message>
+        <source>Define what drives the problem</source>
+        <translation>Festlegen, was das Problem antreibt</translation>
+    </message>
+    <message>
+        <source>Properties &amp;gt; Boundary Conditions / Conductors: a voltage, temperature or current.</source>
+        <translation>Eigenschaften &amp;gt; Randbedingungen / Leiter: eine Spannung, Temperatur oder ein Strom.</translation>
+    </message>
+    <message>
+        <source>Set the outer boundary</source>
+        <translation>Außenrand festlegen</translation>
+    </message>
+    <message>
+        <source>Toolbar &lt;b&gt;Open Boundary&lt;/b&gt; for a field in free space (then fill the new outer region with air), or a boundary condition on the outer lines (Select, right-click &amp;gt; Properties).</source>
+        <translation>Werkzeugleiste &lt;b&gt;Offener Rand&lt;/b&gt; für ein Feld im freien Raum (den neuen Außenbereich dann mit Luft füllen) oder eine Randbedingung auf den Außenlinien (Auswahl, Rechtsklick &amp;gt; Eigenschaften).</translation>
+    </message>
+    <message>
+        <source>Solve</source>
+        <translation>Lösen</translation>
+    </message>
+    <message>
+        <source>Toolbar &lt;b&gt;Analyze&lt;/b&gt;. The check lists anything still missing.</source>
+        <translation>Werkzeugleiste &lt;b&gt;Analysieren&lt;/b&gt;. Die Prüfung listet auf, was noch fehlt.</translation>
+    </message>
+    <message>
+        <source>Read the results</source>
+        <translation>Ergebnisse ablesen</translation>
+    </message>
+    <message>
+        <source>Point at the field to read values; the Results panel shows current, flux linkage and inductance. Operation &amp;gt; Plot X-Y along a contour, Export Report for a PDF.</source>
+        <translation>Mit der Maus auf das Feld zeigen, um Werte abzulesen; das Ergebnis-Panel zeigt Strom, Flussverkettung und Induktivität. Werkzeug &amp;gt; X-Y-Diagramm entlang einer Kontur, Bericht exportieren für ein PDF.</translation>
+    </message>
+    <message>
+        <source>Your first model, step by step</source>
+        <translation>Ihr erstes Modell, Schritt für Schritt</translation>
     </message>
 </context>
 <context>
@@ -2446,6 +2593,158 @@ Wiederherstellen?</translation>
         <source>Parameter sweeps are available for magnetics problems.</source>
         <translation>Parameterstudien gibt es für Magnetik-Probleme.</translation>
     </message>
+    <message>
+        <source>Mesh: %1 nodes, %2 elements</source>
+        <translation>Netz: %1 Knoten, %2 Elemente</translation>
+    </message>
+    <message>
+        <source> -- grey = regions with no block label</source>
+        <translation> – grau = Bereiche ohne Bereichslabel</translation>
+    </message>
+    <message>
+        <source> -- coarse: refine the mesh size of important regions for accurate results</source>
+        <translation> – grob: für genaue Ergebnisse die Netzgröße wichtiger Bereiche verfeinern</translation>
+    </message>
+    <message>
+        <source> -- very fine: solving will take a while</source>
+        <translation> – sehr fein: das Lösen dauert eine Weile</translation>
+    </message>
+    <message>
+        <source>&amp;Pattern...</source>
+        <translation>&amp;Muster…</translation>
+    </message>
+    <message>
+        <source>Trim</source>
+        <translation>Trimmen</translation>
+    </message>
+    <message>
+        <source>Trim (T) -- click a piece of a line or arc to remove it</source>
+        <translation>Trimmen (T) – ein Linien- oder Bogenstück anklicken, um es zu entfernen</translation>
+    </message>
+    <message>
+        <source>Offset</source>
+        <translation>Offset</translation>
+    </message>
+    <message>
+        <source>Offset (O) -- parallel copy of a contour at a distance</source>
+        <translation>Offset (O) – parallele Kopie einer Kontur im Abstand</translation>
+    </message>
+    <message>
+        <source>Dimension</source>
+        <translation>Bemaßung</translation>
+    </message>
+    <message>
+        <source>Dimension (D) -- show lengths and radii; click to set an exact value</source>
+        <translation>Bemaßung (D) – Längen und Radien anzeigen; anklicken, um einen genauen Wert zu setzen</translation>
+    </message>
+    <message>
+        <source>Pattern</source>
+        <translation>Muster</translation>
+    </message>
+    <message>
+        <source>Pattern -- circular or linear copies of the selection, with preview</source>
+        <translation>Muster – kreisförmige oder lineare Kopien der Auswahl, mit Vorschau</translation>
+    </message>
+    <message>
+        <source>&amp;Trim</source>
+        <translation>&amp;Trimmen</translation>
+    </message>
+    <message>
+        <source>O&amp;ffset</source>
+        <translation>O&amp;ffset</translation>
+    </message>
+    <message>
+        <source>&amp;Dimension</source>
+        <translation>&amp;Bemaßung</translation>
+    </message>
+    <message>
+        <source>Color &amp;Map</source>
+        <translation>&amp;Farbskala</translation>
+    </message>
+    <message>
+        <source>Classic FEMM</source>
+        <translation>Klassisch (FEMM)</translation>
+    </message>
+    <message>
+        <source>Viridis (colour-blind safe)</source>
+        <translation>Viridis (farbenblind-tauglich)</translation>
+    </message>
+    <message>
+        <source>Turbo (rainbow)</source>
+        <translation>Turbo (Regenbogen)</translation>
+    </message>
+    <message>
+        <source>Export &amp;Report (PDF)...</source>
+        <translation>&amp;Bericht exportieren (PDF)…</translation>
+    </message>
+    <message>
+        <source>Export Report</source>
+        <translation>Bericht exportieren</translation>
+    </message>
+    <message>
+        <source>PDF (*.pdf)</source>
+        <translation>PDF (*.pdf)</translation>
+    </message>
+    <message>
+        <source>Report written to %1</source>
+        <translation>Bericht gespeichert unter %1</translation>
+    </message>
+    <message>
+        <source>Compare with &amp;Another Solution...</source>
+        <translation>Mit &amp;anderer Lösung vergleichen…</translation>
+    </message>
+    <message>
+        <source>Compare With</source>
+        <translation>Vergleichen mit</translation>
+    </message>
+    <message>
+        <source>Solution Files (*.ans *.res *.anh *.anc)</source>
+        <translation>Lösungsdateien (*.ans *.res *.anh *.anc)</translation>
+    </message>
+    <message>
+        <source>T&amp;abs</source>
+        <translation>&amp;Tabs</translation>
+    </message>
+    <message>
+        <source>&amp;Getting Started</source>
+        <translation>&amp;Erste Schritte</translation>
+    </message>
+    <message>
+        <source>Select what should be repeated first (Select tool: click or drag a window).</source>
+        <translation>Zuerst auswählen, was wiederholt werden soll (Auswahl-Werkzeug: klicken oder Fenster ziehen).</translation>
+    </message>
+    <message>
+        <source>Properties...</source>
+        <translation>Eigenschaften…</translation>
+    </message>
+    <message>
+        <source>Move...</source>
+        <translation>Verschieben…</translation>
+    </message>
+    <message>
+        <source>Copy...</source>
+        <translation>Kopieren…</translation>
+    </message>
+    <message>
+        <source>Pattern...</source>
+        <translation>Muster…</translation>
+    </message>
+    <message>
+        <source>Mirror...</source>
+        <translation>Spiegeln…</translation>
+    </message>
+    <message>
+        <source>Scale...</source>
+        <translation>Skalieren…</translation>
+    </message>
+    <message>
+        <source>Create Radius...</source>
+        <translation>Radius erstellen…</translation>
+    </message>
+    <message>
+        <source>Zoom to Fit</source>
+        <translation>Alles zeigen</translation>
+    </message>
 </context>
 <context>
     <name>MatLibDialog</name>
@@ -2916,6 +3215,61 @@ Ihre Änderungen an der Bibliothek wurden NICHT gespeichert. Die Datei ist evtl.
     </message>
 </context>
 <context>
+    <name>PatternDialog</name>
+    <message>
+        <source>Pattern</source>
+        <translation>Muster</translation>
+    </message>
+    <message>
+        <source>Circular</source>
+        <translation>Kreisförmig</translation>
+    </message>
+    <message>
+        <source>Linear</source>
+        <translation>Linear</translation>
+    </message>
+    <message>
+        <source>Pattern:</source>
+        <translation>Muster:</translation>
+    </message>
+    <message>
+        <source>Number of instances including the original</source>
+        <translation>Anzahl Exemplare einschließlich des Originals</translation>
+    </message>
+    <message>
+        <source>Instances:</source>
+        <translation>Exemplare:</translation>
+    </message>
+    <message>
+        <source>Centre x:</source>
+        <translation>Mittelpunkt x:</translation>
+    </message>
+    <message>
+        <source>Centre y:</source>
+        <translation>Mittelpunkt y:</translation>
+    </message>
+    <message>
+        <source>Spread over a full circle</source>
+        <translation>Über den ganzen Kreis verteilen</translation>
+    </message>
+    <message>
+        <source>Angle between instances (deg):</source>
+        <translation>Winkel zwischen Exemplaren (Grad):</translation>
+    </message>
+    <message>
+        <source>Spacing x:</source>
+        <translation>Abstand x:</translation>
+    </message>
+    <message>
+        <source>Spacing y:</source>
+        <translation>Abstand y:</translation>
+    </message>
+    <message>
+        <source>The dashed preview in the drawing shows the copies.</source>
+        <translation>Die gestrichelte Vorschau in der Zeichnung zeigt die Kopien.</translation>
+    </message>
+</context>
+<context>
     <name>PlotDialog</name>
     <message>
         <source>Export...</source>
@@ -2928,6 +3282,33 @@ Ihre Änderungen an der Bibliothek wurden NICHT gespeichert. Die Datei ist evtl.
     <message>
         <source>CSV Files (*.csv);;All Files (*)</source>
         <translation>CSV-Dateien (*.csv);;Alle Dateien (*)</translation>
+    </message>
+</context>
+<context>
+    <name>PlotDock</name>
+    <message>
+        <source>Plot</source>
+        <translation>Diagramm</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exportieren…</translation>
+    </message>
+    <message>
+        <source>Export Plot Data</source>
+        <translation>Diagrammdaten exportieren</translation>
+    </message>
+    <message>
+        <source>CSV Files (*.csv);;All Files (*)</source>
+        <translation>CSV-Dateien (*.csv);;Alle Dateien (*)</translation>
+    </message>
+    <message>
+        <source>Window</source>
+        <translation>Fenster</translation>
+    </message>
+    <message>
+        <source>Open this plot in its own window</source>
+        <translation>Dieses Diagramm in einem eigenen Fenster öffnen</translation>
     </message>
 </context>
 <context>
@@ -3583,6 +3964,50 @@ ersten Ansicht ausgewählt.</translation>
     <message>
         <source>Import T-k Data</source>
         <translation>T-k-Daten importieren</translation>
+    </message>
+    <message>
+        <source>Magnetics</source>
+        <translation>Magnetik</translation>
+    </message>
+    <message>
+        <source>&lt;tr&gt;&lt;td&gt;Problem type&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Length units&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Frequency&lt;/td&gt;&lt;td&gt;%3 Hz&lt;/td&gt;&lt;/tr&gt;</source>
+        <translation>&lt;tr&gt;&lt;td&gt;Problemtyp&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Längeneinheit&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;Frequenz&lt;/td&gt;&lt;td&gt;%3 Hz&lt;/td&gt;&lt;/tr&gt;</translation>
+    </message>
+    <message>
+        <source>axisymmetric</source>
+        <translation>axialsymmetrisch</translation>
+    </message>
+    <message>
+        <source>planar</source>
+        <translation>eben</translation>
+    </message>
+    <message>
+        <source>Circuits</source>
+        <translation>Stromkreise</translation>
+    </message>
+    <message>
+        <source>Circuit</source>
+        <translation>Stromkreis</translation>
+    </message>
+    <message>
+        <source>AC: magnitudes; L and R from the complex ratios.</source>
+        <translation>AC: Beträge; L und R aus den komplexen Verhältnissen.</translation>
+    </message>
+    <message>
+        <source>Report created %1 with FEMM</source>
+        <translation>Bericht erstellt %1 mit FEMM</translation>
+    </message>
+    <message>
+        <source>Problem</source>
+        <translation>Problem</translation>
+    </message>
+    <message>
+        <source>Export Report</source>
+        <translation>Bericht exportieren</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>Konnte %1 nicht schreiben</translation>
     </message>
 </context>
 <context>
