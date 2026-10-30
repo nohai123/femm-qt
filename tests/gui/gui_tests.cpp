@@ -15,6 +15,9 @@
 #include "results_doc.h"
 #include "results_summary.h"
 #include "welcome_page.h"
+#include "command_palette.h"
+#include <QMenuBar>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QToolButton>
 #include <QSignalSpy>
@@ -444,6 +447,26 @@ private slots:
             wp.grab().save(dir + "/welcome.png");
             dlg.show(); QTest::qWait(30); dlg.grab().save(dir + "/new_problem.png");
         }
+    }
+
+    void commandPaletteFindsAndRuns()
+    {
+        QMenuBar mb;
+        QMenu *mesh = mb.addMenu("&Mesh");
+        int created = 0, hidden = 0;
+        mesh->addAction("&Create Mesh", [&]() { created++; });
+        QAction *h = mesh->addAction("Purge Mesh", [&]() { hidden++; });
+        h->setVisible(false);
+        mb.addMenu("&View")->addAction("Zoom &In");
+        CommandPalette pal(&mb);
+        auto *list = pal.findChild<QListWidget *>();
+        auto *edit = pal.findChild<QLineEdit *>();
+        QCOMPARE(list->count(), 2);                // hidden command not listed
+        edit->setText("mesh cre");
+        QCOMPARE(list->count(), 1);
+        QTest::keyClick(edit, Qt::Key_Return);
+        QTRY_COMPARE(created, 1);
+        QCOMPARE(hidden, 0);
     }
 
     // Not a check: with FEMM_GUI_TEST_SHOTS=<dir> set, saves pictures of the

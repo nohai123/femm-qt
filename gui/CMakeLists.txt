@@ -15,6 +15,7 @@ set(FEMM_GUI_SOURCES
     model_panel.cpp
     results_summary.cpp
     welcome_page.cpp
+    command_palette.cpp
     mouse_release_gate.cpp
     results_widget.cpp
     scalar_results_widget.cpp

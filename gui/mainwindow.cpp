@@ -90,6 +90,7 @@
 #include "model_panel.h"
 #include "results_summary.h"
 #include "welcome_page.h"
+#include "command_palette.h"
 #include <QStackedWidget>
 
 static bool femmOpenable(const QString &path);
@@ -2716,6 +2717,15 @@ void MainWindow::createLeftToolbars()
     });
 
     QMenu *help = menuBar()->addMenu(tr("&Help"));
+    // Cmd+K (Ctrl+K): run any command by name
+    help->addAction(tr("Command Palette..."), QKeySequence(Qt::CTRL | Qt::Key_K), this, [this]() {
+        CommandPalette pal(menuBar(), this);
+        const QRect g = geometry();
+        pal.adjustSize();
+        pal.move(g.center().x() - pal.width() / 2, g.top() + 80);
+        pal.exec();
+    });
+    help->addSeparator();
     help->addAction(tr("&Manual"), QKeySequence(Qt::Key_F1), [this]() {
         // Beside the executable on Windows and Linux, where the installer and
         // the build scripts put it; Contents/Resources/ in a macOS bundle,
