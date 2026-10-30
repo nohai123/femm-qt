@@ -201,7 +201,7 @@ private:
     QAction *m_actBlock = nullptr;
     QAction *m_actGroup = nullptr;
     // CAD-style sketch tools (EditorWidget::SketchTool 1..4), same exclusive group
-    QAction *m_actSketch[6] = {};
+    QAction *m_actSketch[7] = {};
     class MaterialPicker *m_materialPicker = nullptr;
     class ModelPanel *m_modelPanel = nullptr;
     class ResultsSummaryPanel *m_resultsPanel = nullptr;

@@ -483,6 +483,11 @@ void EditorWidget::mousePressEvent(QMouseEvent *event)
         return;
     }
 
+    // ---- Select tool: click / window / drag ----
+    if (m_sketchTool == SketchSelect && m_zoomWndFlag == 0 && m_selectWndFlag == 0 &&
+        m_selectCircFlag == 0 && selectPress(event))
+        return;
+
     // ---- Left button: create entity or start zoom/select window ----
     if (event->button() == Qt::LeftButton) {
         double cx = m_mx, cy = m_my;
@@ -706,6 +711,8 @@ void EditorWidget::mouseMoveEvent(QMouseEvent *event)
     }
     emit coordinatesChanged(dx, dy);
 
+    if (m_sketchTool == SketchSelect && selectMove(event)) return;
+
     if (m_panning) {
         double dx = (event->pos().x() - m_panStart.x()) / m_mag;
         double dy = -(event->pos().y() - m_panStart.y()) / m_mag;
@@ -812,6 +819,7 @@ void EditorWidget::mouseDoubleClickEvent(QMouseEvent *event)
 
 void EditorWidget::mouseReleaseEvent(QMouseEvent *event)
 {
+    if (m_sketchTool == SketchSelect && selectRelease(event)) return;
     if (m_panning && event->button() == Qt::MiddleButton) {
         m_panning = false;
         setCursor(Qt::ArrowCursor);
@@ -956,6 +964,7 @@ void EditorWidget::keyPressEvent(QKeyEvent *event)
         case Qt::Key_C: setSketchTool(SketchCircle); return;
         case Qt::Key_A: setSketchTool(SketchArc3); return;
         case Qt::Key_F: setSketchTool(SketchFill); return;
+        case Qt::Key_V: setSketchTool(SketchSelect); return;
         case Qt::Key_N: setEditAction(0); return;
         case Qt::Key_S: setEditAction(1); return;
         case Qt::Key_B: setEditAction(2); return;

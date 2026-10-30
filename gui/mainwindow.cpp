@@ -138,6 +138,16 @@ static QIcon sketchIcon(int tool)
             p.drawArc(QRectF(2, 3, 12, 14), 20 * 16, 140 * 16);
             dot(2.5, 7.5); dot(8, 3); dot(13.5, 7.5);
             break;
+        case EditorWidget::SketchSelect: {
+            // Arrow pointer
+            QPolygonF arrow;
+            arrow << QPointF(4, 1.5) << QPointF(4, 12.5) << QPointF(6.8, 9.8) << QPointF(8.8, 13.8)
+                  << QPointF(10.6, 13) << QPointF(8.6, 9) << QPointF(12.2, 9) ;
+            p.setBrush(Qt::white);
+            p.setPen(QPen(Qt::black, 1.1));
+            p.drawPolygon(arrow);
+            break;
+        }
         case EditorWidget::SketchFill: {
             // Paint bucket
             QPolygonF bucket;
@@ -418,7 +428,7 @@ EditorWidget *MainWindow::addEditorTab(DocumentBase *doc, const QString &title)
     connect(editor, &EditorWidget::statusMessage, this, &MainWindow::updateStatus);
     connect(editor, &EditorWidget::editActionChanged, this, &MainWindow::onEditActionChanged);
     connect(editor, &EditorWidget::sketchToolChanged, this, [this](int tool) {
-        if (tool > 0 && tool < 6 && m_actSketch[tool]) m_actSketch[tool]->setChecked(true);
+        if (tool > 0 && tool < 7 && m_actSketch[tool]) m_actSketch[tool]->setChecked(true);
     });
 
     // Apply saved preferences
@@ -467,6 +477,10 @@ EditorWidget *MainWindow::addEditorTab(DocumentBase *doc, const QString &title)
             sub->setWindowIcon(QIcon(QString(":/icons/") + icoNames[pt]));
     }
     sub->showMaximized();
+
+    // Start in the Select tool, as a CAD program does: a stray click selects
+    // instead of dropping a node.
+    editor->setSketchTool(EditorWidget::SketchSelect);
 
     // Sync menu/toolbar grid checkmarks to match loaded preferences.
     syncPreprocessorMenus(editor);
@@ -1210,7 +1224,7 @@ void MainWindow::syncPreprocessorMenus(EditorWidget *editor)
         case 3: modeAct = m_actArc;     break;
         case 4: modeAct = m_actGroup;   break;
     }
-    if (editor->sketchTool() > 0 && editor->sketchTool() < 6)
+    if (editor->sketchTool() > 0 && editor->sketchTool() < 7)
         modeAct = m_actSketch[editor->sketchTool()];
     if (m_materialPicker) {
         m_materialPicker->setDocument(editor->document());
@@ -2206,6 +2220,7 @@ void MainWindow::createPreprocessorUI()
     // Sketch tools first: they are the quickest way to draw geometry.
     {
         struct { int tool; const char *name; const char *tip; } tools[] = {
+            {EditorWidget::SketchSelect, QT_TR_NOOP("Select"), QT_TR_NOOP("Select and move (V) -- click, drag a window, drag points")},
             {EditorWidget::SketchLine,   QT_TR_NOOP("Line"),      QT_TR_NOOP("Line / polyline (L) -- click points, nodes are created automatically")},
             {EditorWidget::SketchRect,   QT_TR_NOOP("Rectangle"), QT_TR_NOOP("Rectangle (R) -- two opposite corners")},
             {EditorWidget::SketchCircle, QT_TR_NOOP("Circle"),    QT_TR_NOOP("Circle (C) -- centre, then radius")},
@@ -2287,6 +2302,7 @@ void MainWindow::createPreprocessorUI()
             act->blockSignals(false);
         });
     };
+    addModeMenuItem(tr("Se&lect"), m_actSketch[EditorWidget::SketchSelect]);
     addModeMenuItem(tr("&Line"), m_actSketch[EditorWidget::SketchLine]);
     addModeMenuItem(tr("&Rectangle"), m_actSketch[EditorWidget::SketchRect]);
     addModeMenuItem(tr("&Circle"), m_actSketch[EditorWidget::SketchCircle]);

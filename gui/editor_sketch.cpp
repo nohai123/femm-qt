@@ -33,6 +33,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QMap>
+#include <QLineF>
+#include <QMouseEvent>
 #include "view_colors.h"
 #include <QKeyEvent>
 #include <QDialog>
@@ -116,8 +118,10 @@ void EditorWidget::setSketchTool(int tool)
     m_chainStart = -1;
     m_input[0].clear(); m_input[1].clear(); m_inputField = 0;
     m_firstPoint = -1;
-    // Selection, Move, Copy etc. act on segments while a sketch tool is up.
-    if (tool != SketchNone) m_editAction = 1;
+    // Selection, Move, Copy etc. act on segments while a drawing tool is up,
+    // and on everything selected (group semantics) with the Select tool.
+    if (tool == SketchSelect) m_editAction = 4;
+    else if (tool != SketchNone) m_editAction = 1;
     emit sketchToolChanged(tool);
     emitSketchHint();
     update();
@@ -140,6 +144,11 @@ void EditorWidget::emitSketchHint()
     case SketchCircle:
         h = started ? tr("Circle: click a point on the circle, or type the radius + Enter.")
                     : tr("Circle: click the centre (Tab: enter coordinates).");
+        break;
+    case SketchSelect:
+        h = tr("Select: click an object (Shift adds), drag a window (left-to-right: inside, "
+               "right-to-left: touching), drag a selected point to move it. Space: properties, "
+               "Backspace: delete.");
         break;
     case SketchFill:
         h = m_fillMaterial.isEmpty()
@@ -584,6 +593,19 @@ void EditorWidget::drawSnapMarker(QPainter &p, const Snap &s)
 void EditorWidget::drawSketchOverlay(QPainter &p)
 {
     if (!m_doc || !m_hasCursor) return;
+    if (m_sketchTool == SketchSelect) {
+        if (m_selBand) {
+            const QPoint cur = mapFromGlobal(QCursor::pos());
+            const bool crossing = cur.x() < m_selPressPos.x();
+            p.save();
+            p.setPen(QPen(kPreviewColor, 1, crossing ? Qt::DashLine : Qt::SolidLine));
+            QColor fill = crossing ? QColor(60, 200, 90, 40) : QColor(0, 120, 215, 40);
+            p.setBrush(fill);
+            p.drawRect(QRect(m_selPressPos, cur).normalized());
+            p.restore();
+        }
+        return;
+    }
     if (m_sketchTool == SketchFill) {
         // Outline the region a click would fill
         const int f = m_regions.faceAt(m_mx, m_my);
@@ -830,4 +852,151 @@ void EditorWidget::drawRegions(QPainter &p)
         }
     }
     p.restore();
+}
+
+// ================================================================
+// Select tool
+// ================================================================
+
+bool EditorWidget::selectPress(QMouseEvent *event)
+{
+    if (!m_doc || event->button() != Qt::LeftButton) return false;
+    const double x = m_mx, y = m_my, tol = pickTolerance();
+    const bool add = event->modifiers() & Qt::ShiftModifier;
+
+    // Nearest object within the pick tolerance: node, label, segment, arc
+    int kind = -1, idx = -1;
+    double best = tol;
+    if (int j = m_doc->ClosestNode(x, y); j >= 0 && m_doc->nodelist[j].GetDistance(x, y) < best) {
+        best = m_doc->nodelist[j].GetDistance(x, y); kind = 0; idx = j;
+    }
+    if (int j = m_doc->ClosestBlockLabel(x, y); j >= 0 && m_doc->blocklist[j].GetDistance(x, y) < best) {
+        best = m_doc->blocklist[j].GetDistance(x, y); kind = 2; idx = j;
+    }
+    if (kind < 0) {
+        if (int j = m_doc->ClosestSegment(x, y); j >= 0 && std::abs(m_doc->ShortestDistance(x, y, j)) < best) {
+            best = std::abs(m_doc->ShortestDistance(x, y, j)); kind = 1; idx = j;
+        }
+        if (int j = m_doc->ClosestArcSegment(x, y);
+            j >= 0 && m_doc->ShortestDistanceFromArc(CComplex(x, y), m_doc->arclist[j]) < best) {
+            kind = 3; idx = j;
+        }
+    }
+
+    auto isSel = [&](int k, int i) {
+        switch (k) {
+        case 0: return m_doc->nodelist[i].IsSelected;
+        case 1: return m_doc->linelist[i].IsSelected;
+        case 2: return m_doc->blocklist[i].IsSelected;
+        default: return m_doc->arclist[i].IsSelected;
+        }
+    };
+    auto setSel = [&](int k, int i, bool on) {
+        switch (k) {
+        case 0: m_doc->nodelist[i].IsSelected = on; break;
+        case 1: m_doc->linelist[i].IsSelected = on; break;
+        case 2: m_doc->blocklist[i].IsSelected = on; break;
+        default: m_doc->arclist[i].IsSelected = on; break;
+        }
+    };
+
+    m_selPending = true;
+    m_selDragging = false;
+    m_selBand = false;
+    m_selPressPos = event->pos();
+    m_selX0 = x; m_selY0 = y;
+
+    if (kind < 0) {
+        if (!add) m_doc->UnselectAll();
+        m_selBand = true;            // becomes a window on drag
+    } else if (add) {
+        setSel(kind, idx, !isSel(kind, idx));
+    } else if (!isSel(kind, idx)) {
+        m_doc->UnselectAll();
+        setSel(kind, idx, true);
+    }
+    update();
+    return true;
+}
+
+bool EditorWidget::selectMove(QMouseEvent *event)
+{
+    if (!m_selPending || !(event->buttons() & Qt::LeftButton)) return false;
+    if (m_selBand) { update(); return true; }
+
+    if (!m_selDragging) {
+        if ((event->pos() - m_selPressPos).manhattanLength() < 4) return true;
+        // Start moving: remember where everything selected was
+        m_doc->pushUndo();
+        m_dragNodes.clear(); m_dragLabels.clear();
+        std::vector<char> moveNode(m_doc->nodelist.size(), 0);
+        for (size_t i = 0; i < m_doc->nodelist.size(); i++) moveNode[i] |= m_doc->nodelist[i].IsSelected;
+        for (const auto &sg : m_doc->linelist) if (sg.IsSelected) moveNode[sg.n0] = moveNode[sg.n1] = 1;
+        for (const auto &a : m_doc->arclist) if (a.IsSelected) moveNode[a.n0] = moveNode[a.n1] = 1;
+        for (size_t i = 0; i < moveNode.size(); i++)
+            if (moveNode[i]) m_dragNodes.push_back({(int)i, QPointF(m_doc->nodelist[i].x, m_doc->nodelist[i].y)});
+        for (size_t i = 0; i < m_doc->blocklist.size(); i++)
+            if (m_doc->blocklist[i].IsSelected)
+                m_dragLabels.push_back({(int)i, QPointF(m_doc->blocklist[i].x, m_doc->blocklist[i].y)});
+        if (m_dragNodes.empty() && m_dragLabels.empty()) { m_selPending = false; return true; }
+        m_selDragging = true;
+    }
+    // Offset, with grid snap applied to the moved point
+    double tx = m_mx, ty = m_my;
+    applySnap(tx, ty);
+    double sx = m_selX0, sy = m_selY0;
+    applySnap(sx, sy);
+    const double dx = tx - sx, dy = ty - sy;
+    for (const auto &n : m_dragNodes) { m_doc->nodelist[n.first].x = n.second.x() + dx; m_doc->nodelist[n.first].y = n.second.y() + dy; }
+    for (const auto &b : m_dragLabels) { m_doc->blocklist[b.first].x = b.second.x() + dx; m_doc->blocklist[b.first].y = b.second.y() + dy; }
+    emit statusMessage(tr("Moving by (%1, %2)").arg(dx, 0, 'g', 6).arg(dy, 0, 'g', 6));
+    update();
+    return true;
+}
+
+bool EditorWidget::selectRelease(QMouseEvent *event)
+{
+    if (!m_selPending || event->button() != Qt::LeftButton) return false;
+    m_selPending = false;
+    if (m_selDragging) {
+        m_selDragging = false;
+        // Merge what now coincides, split what now crosses
+        m_doc->EnforcePSLG();
+        invalidateMeshDisplay();
+    } else if (m_selBand) {
+        m_selBand = false;
+        if ((event->pos() - m_selPressPos).manhattanLength() >= 4) {
+            const bool crossing = event->pos().x() < m_selPressPos.x();
+            selectInRect(m_selX0, m_selY0, m_mx, m_my, crossing);
+        }
+    }
+    update();
+    return true;
+}
+
+void EditorWidget::selectInRect(double x0, double y0, double x1, double y1, bool crossing)
+{
+    const QRectF r = QRectF(QPointF(x0, y0), QPointF(x1, y1)).normalized();
+    auto in = [&](double x, double y) { return r.contains(QPointF(x, y)); };
+    for (auto &n : m_doc->nodelist) if (in(n.x, n.y)) n.IsSelected = true;
+    for (auto &b : m_doc->blocklist) if (in(b.x, b.y)) b.IsSelected = true;
+    for (auto &sg : m_doc->linelist) {
+        const auto &a = m_doc->nodelist[sg.n0], &b = m_doc->nodelist[sg.n1];
+        const bool ia = in(a.x, a.y), ib = in(b.x, b.y);
+        if (crossing ? (ia || ib || QLineF(a.x, a.y, b.x, b.y).intersects(QLineF(r.topLeft(), r.bottomRight()), nullptr) == QLineF::BoundedIntersection
+                                 || QLineF(a.x, a.y, b.x, b.y).intersects(QLineF(r.topRight(), r.bottomLeft()), nullptr) == QLineF::BoundedIntersection)
+                     : (ia && ib))
+            sg.IsSelected = true;
+    }
+    for (auto &arc : m_doc->arclist) {
+        // Sample the arc: all samples inside (window) or any inside (crossing)
+        CComplex c; double R;
+        m_doc->GetCircle(arc, c, R);
+        CComplex pt = m_doc->nodelist[arc.n0].CC();
+        const int k = std::max(4, (int)std::ceil(arc.ArcLength / 5.0));
+        const CComplex rot(std::cos(arc.ArcLength * M_PI / 180.0 / k), std::sin(arc.ArcLength * M_PI / 180.0 / k));
+        int inside = in(pt.re, pt.im);
+        for (int i = 0; i < k; i++) { pt = (pt - c) * rot + c; inside += in(pt.re, pt.im); }
+        if (crossing ? inside > 0 : inside == k + 1) arc.IsSelected = true;
+    }
 }

@@ -451,6 +451,54 @@ private slots:
         }
     }
 
+    void drag(double x0, double y0, double x1, double y1, Qt::KeyboardModifiers mods = Qt::NoModifier)
+    {
+        QTest::mouseMove(ed, scr(x0, y0));
+        QTest::mousePress(ed, Qt::LeftButton, mods, scr(x0, y0));
+        for (int i = 1; i <= 5; i++) {
+            const double t = i / 5.0;
+            QMouseEvent mv(QEvent::MouseMove, QPointF(scr(x0 + t * (x1 - x0), y0 + t * (y1 - y0))),
+                           ed->mapToGlobal(QPointF(scr(x0 + t * (x1 - x0), y0 + t * (y1 - y0)))),
+                           Qt::NoButton, Qt::LeftButton, mods);
+            QApplication::sendEvent(ed, &mv);
+        }
+        QTest::mouseRelease(ed, Qt::LeftButton, mods, scr(x1, y1));
+    }
+
+    void selectToolClickWindowAndDrag()
+    {
+        ed->setSketchTool(EditorWidget::SketchRect);
+        click(0, 0); click(2, 1);          // rectangle A
+        click(3, 0); click(4, 1);          // rectangle B
+        ed->setSketchTool(EditorWidget::SketchSelect);
+        auto nsel = [&]() { int n = 0; for (auto &x : doc->linelist) n += x.IsSelected; return n; };
+
+        click(1, 0.02);                     // bottom edge of A
+        QCOMPARE(nsel(), 1);
+        click(3.5, 1.0, Qt::ShiftModifier); // add top edge of B
+        QCOMPARE(nsel(), 2);
+        click(2.5, 2.5);                    // empty space clears
+        QCOMPARE(nsel(), 0);
+
+        // Window left-to-right around A only: A's 4 segments, not B's
+        drag(-0.5, -0.5, 2.5, 1.5);
+        QCOMPARE(nsel(), 4);
+        // Crossing right-to-left through B's left half: touches 3 of B's segments
+        click(2.5, 2.5);
+        drag(3.5, 1.5, 2.8, -0.5);
+        QCOMPARE(nsel(), 3);
+
+        // Drag a node of A to a new place; undo restores it
+        click(2.5, 2.5);
+        const int n = findNode(2, 1);
+        QVERIFY(n >= 0);
+        drag(2, 1, 2, 2);
+        QVERIFY(findNode(2, 1) < 0);
+        QVERIFY(findNode(2, 2) >= 0);
+        doc->undo();
+        QVERIFY(findNode(2, 1) >= 0);
+    }
+
     void commandPaletteFindsAndRuns()
     {
         QMenuBar mb;

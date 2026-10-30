@@ -84,7 +84,8 @@ public:
     // action stays set (to Segment) so right-click selection, Move, Copy etc.
     // keep working on what the tool drew. setEditAction() leaves the tool.
     enum SketchTool { SketchNone = 0, SketchLine, SketchRect, SketchCircle, SketchArc3,
-                      SketchFill };   // Fill: click a region to assign a material
+                      SketchFill,     // Fill: click a region to assign a material
+                      SketchSelect }; // Select: click/drag to select, drag to move
     void setSketchTool(int tool);
     int sketchTool() const { return m_sketchTool; }
 
@@ -175,6 +176,17 @@ private:
     double pickTolerance() const { return 10.0 / m_mag; }
 
     void fillPress(double x, double y);
+    // Select tool (editor_sketch.cpp)
+    bool selectPress(QMouseEvent *event);
+    bool selectMove(QMouseEvent *event);
+    bool selectRelease(QMouseEvent *event);
+    void selectInRect(double x0, double y0, double x1, double y1, bool crossing);
+    bool m_selPending = false;       // left button down in the select tool
+    bool m_selDragging = false;      // ...and moving the selection
+    bool m_selBand = false;          // ...or dragging a selection window
+    QPoint m_selPressPos;
+    double m_selX0 = 0, m_selY0 = 0; // press point, drawing coords
+    std::vector<std::pair<int, QPointF>> m_dragNodes, m_dragLabels;  // originals
     void drawRegions(QPainter &p);
     RegionMap m_regions;
     bool m_fillRegions = true;
