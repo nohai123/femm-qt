@@ -236,6 +236,10 @@ void TcpServer::handleClient()
         // its own server, sends a command, and gets "FEMM connection closed
         // unexpectedly". Refusing connections the moment we decide to exit
         // makes the next client spawn its own, which is what it wanted.
+        if (!m_exitOnDisconnect) {
+            closeClient();
+            return;
+        }
         stop();
         fprintf(stderr, "IPC: client disconnected, femm-qt exiting\n");
         exit(0);

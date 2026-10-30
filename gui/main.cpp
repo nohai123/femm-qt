@@ -728,12 +728,14 @@ int main(int argc, char *argv[])
     // which is ANSI-mangled on Windows and would corrupt non-ASCII paths.
     const QStringList qargs = app.arguments();
     int port = 48015;
+    bool portGiven = false;   // launched by a binding (they all pass --port)
     QString fileArg;   // positional arg: a document to open, or a .py script to run
     bool runAndExit = false;   // -run <script>: run the script, then exit (like femm_headless -run)
     QStringList scriptArgs;   // becomes sys.argv[1:] when fileArg is a script
     for (int i = 1; i < qargs.size(); i++) {
         if ((qargs[i] == "-port" || qargs[i] == "--port") && i + 1 < qargs.size()) {
             port = qargs[++i].toInt();
+            portGiven = true;
         } else if (qargs[i] == "-run" && i + 1 < qargs.size()) {
             fileArg = qargs[++i];
             runAndExit = true;
@@ -759,6 +761,9 @@ int main(int argc, char *argv[])
     // Layer 2: IPC server (runs inside Qt event loop via QTimer)
     TcpServer server;
     server.listen(port);
+    // Started by the user (no --port): a client disconnecting must not close
+    // the window. Started by a binding: keep the binding lifecycle.
+    server.setExitOnDisconnect(portGiven);
     // A scripted quit() must not leave the port advertised while the process
     // takes its time dying; see set_exit_hook in script_callbacks.h.
     static TcpServer *s_ipcServer = &server;

@@ -44,6 +44,13 @@ public:
     void run();
 
     int port() const { return m_port; }
+
+    // Whether the process exits when its client disconnects (the default:
+    // "femm-qt lives iff a client is connected", for instances a binding
+    // launched). The GUI turns it off when the user started it themselves, so
+    // an attached client -- a script, or an AI assistant via MCP -- can come
+    // and go without closing the user's window and work.
+    void setExitOnDisconnect(bool on) { m_exitOnDisconnect = on; }
     bool isListening() const { return m_listening; }
 
     // Raw socket accessors. Exposed so the GUI can attach a QSocketNotifier
@@ -65,6 +72,7 @@ private:
     int m_port;
     bool m_listening;
     bool m_running;
+    bool m_exitOnDisconnect = true;
     char m_buf[65536];      // receive buffer
     int m_bufLen;
 
