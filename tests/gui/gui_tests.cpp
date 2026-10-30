@@ -13,6 +13,8 @@
 #include "model_panel.h"
 #include "results_widget.h"
 #include "results_doc.h"
+#include "results_summary.h"
+#include <QTableWidget>
 #include "material_picker.h"
 #include <QTreeWidget>
 #include <QSpinBox>
@@ -397,6 +399,22 @@ private slots:
         QVERIFY2(hover, "hover readout visible over the mesh");
         const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
         if (!dir.isEmpty()) rw.grab().save(dir + "/results_hover.png");
+    }
+
+    void resultsSummaryListsCircuits()
+    {
+        const QString ans = qEnvironmentVariable("FEMM_GUI_TEST_ANS");
+        if (ans.isEmpty()) QSKIP("FEMM_GUI_TEST_ANS not set");
+        ResultsDoc rd;
+        QVERIFY(rd.OpenDocument(ans.toStdString()));
+        ResultsSummaryPanel panel;
+        panel.refresh(&rd);
+        auto *t = panel.findChild<QTableWidget *>();
+        QCOMPARE(t->rowCount(), (int)rd.circproplist.size());
+        for (int k = 0; k < t->rowCount(); k++)
+            QCOMPARE(t->item(k, 0)->text(), QString::fromStdString(rd.circproplist[k].CircName));
+        panel.refresh(nullptr);
+        QCOMPARE(t->rowCount(), 0);
     }
 
     // Not a check: with FEMM_GUI_TEST_SHOTS=<dir> set, saves pictures of the

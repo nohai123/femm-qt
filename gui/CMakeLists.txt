@@ -13,6 +13,7 @@ set(FEMM_GUI_SOURCES
     material_picker.cpp
     problem_check.cpp
     model_panel.cpp
+    results_summary.cpp
     mouse_release_gate.cpp
     results_widget.cpp
     scalar_results_widget.cpp

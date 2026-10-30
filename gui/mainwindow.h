@@ -204,6 +204,7 @@ private:
     QAction *m_actSketch[6] = {};
     class MaterialPicker *m_materialPicker = nullptr;
     class ModelPanel *m_modelPanel = nullptr;
+    class ResultsSummaryPanel *m_resultsPanel = nullptr;
     QAction *m_actMaterialLibrary = nullptr;
     QAction *m_fillRegionsMenu = nullptr;
     // Copies a library material into the active document if it lacks it.

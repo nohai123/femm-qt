@@ -88,6 +88,7 @@
 #include "material_picker.h"
 #include "problem_check.h"
 #include "model_panel.h"
+#include "results_summary.h"
 
 static bool femmOpenable(const QString &path);
 
@@ -189,6 +190,14 @@ MainWindow::MainWindow(TcpServer *server, QWidget *parent)
     m_modelPanel->hide();
     connect(m_modelPanel->toggleViewAction(), &QAction::triggered, this, [](bool on) {
         QSettings().setValue("ui/modelPanel", on);
+    });
+
+    // Results panel: circuit current, voltage, flux linkage, L and R
+    m_resultsPanel = new ResultsSummaryPanel(this);
+    addDockWidget(Qt::RightDockWidgetArea, m_resultsPanel);
+    m_resultsPanel->hide();
+    connect(m_resultsPanel->toggleViewAction(), &QAction::triggered, this, [](bool on) {
+        QSettings().setValue("ui/resultsPanel", on);
     });
 
     createCommonMenus();
@@ -999,6 +1008,7 @@ void MainWindow::showEmptyUI()
 {
     m_uiState = -1;
     if (m_modelPanel) m_modelPanel->hide();
+    if (m_resultsPanel) m_resultsPanel->hide();
     // Hide document-specific UI but keep File toolbar (New/Open)
     m_preTopBar1->show();
     m_preTopBar2->hide();
@@ -1027,6 +1037,7 @@ void MainWindow::showPreprocessorUI()
 {
     m_uiState = 0;
     if (m_modelPanel) m_modelPanel->setVisible(QSettings().value("ui/modelPanel", true).toBool());
+    if (m_resultsPanel) m_resultsPanel->hide();
     m_actSave->setVisible(true);
     m_actSaveAs->setVisible(true);
     m_preTopBar1->show();
@@ -2383,6 +2394,8 @@ void MainWindow::createPostprocessorUI()
 {
     // --- Menus ---
     m_ppMenuView = menuBar()->addMenu(tr("&View"));
+    m_ppMenuView->addAction(m_resultsPanel->toggleViewAction());
+    m_ppMenuView->addSeparator();
     m_ppActDensity = m_ppMenuView->addAction(tr("&Density Plot"));
     m_ppActDensity->setCheckable(true); m_ppActDensity->setChecked(true);
     connect(m_ppActDensity, &QAction::toggled, this, &MainWindow::onPPToggleDensity);
@@ -3007,6 +3020,13 @@ bool MainWindow::confirmDiscard(QMdiSubWindow *sub)
 void MainWindow::refreshModifiedMarks()
 {
     if (m_modelPanel && m_modelPanel->isVisible()) m_modelPanel->refresh(activeEditor());
+    if (m_resultsPanel) {
+        // Magnetics only (circuits); shown with a magnetics results tab
+        auto *rw = (m_uiState == 1) ? activeResults() : nullptr;
+        const bool want = rw && QSettings().value("ui/resultsPanel", true).toBool();
+        if (want != m_resultsPanel->isVisible()) m_resultsPanel->setVisible(want);
+        if (want) m_resultsPanel->refresh(rw->document());
+    }
 
     // Results tabs whose model has been edited since it was analysed say so.
     static const QString outdated = tr(" (outdated)");
