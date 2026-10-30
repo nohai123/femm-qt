@@ -18,6 +18,7 @@
 #include "command_palette.h"
 #include "view_colors.h"
 #include <QSettings>
+#include <QTranslator>
 #include <QMenuBar>
 #include <QLineEdit>
 #include <QListWidget>
@@ -497,6 +498,26 @@ private slots:
         QVERIFY(findNode(2, 2) >= 0);
         doc->undo();
         QVERIFY(findNode(2, 1) >= 0);
+    }
+
+    void germanTranslationLoads()
+    {
+        QTranslator tr;
+        QVERIFY(tr.load(":/i18n/femm_de.qm"));
+        QCoreApplication::installTranslator(&tr);
+        WelcomePage wp;
+        bool found = false;
+        for (auto *b : wp.findChildren<QToolButton *>()) found |= b->text().startsWith("Magnetik");
+        QVERIFY2(found, "welcome tiles in German");
+        const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
+        if (!dir.isEmpty()) {
+            ed->hide();
+            wp.resize(1000, 640); wp.show(); QTest::qWait(30);
+            wp.grab().save(dir + "/welcome_de.png");
+            NewProblemDialog dlg(0); dlg.show(); QTest::qWait(30);
+            dlg.grab().save(dir + "/new_problem_de.png");
+        }
+        QCoreApplication::removeTranslator(&tr);
     }
 
     void commandPaletteFindsAndRuns()

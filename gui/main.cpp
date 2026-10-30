@@ -9,6 +9,10 @@
 //   Layer 3: Qt GUI (MainWindow with MDI)
 
 #include <QApplication>
+#include <QTranslator>
+#include <QLocale>
+#include <QLibraryInfo>
+#include <QSettings>
 #include <QEventLoop>
 #include <QProcess>
 #include <QFileInfo>
@@ -710,6 +714,21 @@ int main(int argc, char *argv[])
     app.setApplicationName("FEMM");
     app.setApplicationVersion("5.0.0");
     app.setOrganizationName("FEMM");
+
+    // User-interface language: ui/language ("de", "en", ...) or, unset, the
+    // system's. English is the source language and needs no translator.
+    {
+        static QTranslator femmTr, qtTr;
+        QString lang = QSettings().value("ui/language").toString();
+        if (lang.isEmpty()) lang = QLocale::system().name().left(2);
+        if (lang != "en" && femmTr.load(":/i18n/femm_" + lang + ".qm")) {
+            app.installTranslator(&femmTr);
+            // Qt's own strings (standard buttons such as Save / Cancel)
+            if (qtTr.load(":/i18n/qtbase_" + lang + ".qm") ||
+                qtTr.load("qtbase_" + lang, QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
+                app.installTranslator(&qtTr);
+        }
+    }
     app.setWindowIcon(QIcon(":/icons/femm.ico"));
 
     // Which .desktop file this program IS. No-op on Windows and macOS; on

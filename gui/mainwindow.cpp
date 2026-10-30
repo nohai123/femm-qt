@@ -2747,6 +2747,24 @@ void MainWindow::createLeftToolbars()
                 applyTheme();
             });
         }
+        // Language: takes effect at the next start
+        QMenu *lm = m_windowMenu->addMenu(tr("&Language"));
+        auto *lg = new QActionGroup(this);
+        const QString curLang = QSettings().value("ui/language").toString();
+        const struct { const char *code; const char *name; } langs[] = {
+            {"", QT_TR_NOOP("System Default")}, {"en", "English"}, {"de", "Deutsch"}};
+        for (const auto &l : langs) {
+            QAction *a = lm->addAction(l.code[0] ? QString::fromUtf8(l.name) : tr(l.name));
+            a->setCheckable(true);
+            a->setChecked(curLang == QLatin1String(l.code));
+            lg->addAction(a);
+            const QString code = QString::fromLatin1(l.code);
+            connect(a, &QAction::triggered, this, [this, code]() {
+                QSettings().setValue("ui/language", code);
+                QMessageBox::information(this, tr("Language"),
+                    tr("The new language is used from the next start of FEMM."));
+            });
+        }
         m_windowMenu->addSeparator();
         connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this, [this]() { applyTheme(); });
     }

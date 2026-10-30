@@ -62,6 +62,28 @@ add_executable(femm_gui
     $<$<PLATFORM_ID:Windows>:femm.rc>
 )
 femm_add_version_resource(femm_gui "FEMM")
+
+# --- Translations (gui/translations/femm_<lang>.ts) -------------------------
+# Compiled to .qm and embedded under :/i18n. main.cpp picks the language from
+# the ui/language setting, else the system locale; English needs no file.
+find_package(Qt6 COMPONENTS LinguistTools QUIET)
+if(Qt6LinguistTools_FOUND)
+    qt_add_translations(femm_gui
+        TS_FILES translations/femm_de.ts
+        RESOURCE_PREFIX "/i18n"
+        LUPDATE_OPTIONS -locations none)
+    # Qt's own strings (standard dialog buttons): bundled from the Qt in use,
+    # since macdeployqt and the installers do not ship Qt's translations.
+    get_target_property(_qmake Qt6::qmake IMPORTED_LOCATION)
+    execute_process(COMMAND "${_qmake}" -query QT_INSTALL_TRANSLATIONS
+                    OUTPUT_VARIABLE _qt_tr OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(EXISTS "${_qt_tr}/qtbase_de.qm")
+        set_source_files_properties("${_qt_tr}/qtbase_de.qm" PROPERTIES QT_RESOURCE_ALIAS qtbase_de.qm)
+        qt_add_resources(femm_gui "qt_translations" PREFIX "/i18n" FILES "${_qt_tr}/qtbase_de.qm")
+    endif()
+else()
+    message(STATUS "Qt6 LinguistTools not found -- building without translations")
+endif()
 # femm.rc says ICON "icons/femm.ico", but nothing scans a .rc for what it
 # includes -- ninja reported "#deps 0" for femm.rc.obj -- so replacing the icon
 # rebuilt nothing and the executable kept the old one.
@@ -139,4 +161,9 @@ if(FEMM_GUI_TESTS)
     set_target_properties(femm_gui_tests PROPERTIES MACOSX_BUNDLE OFF)
     target_include_directories(femm_gui_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(femm_gui_tests PRIVATE femm_ipc Qt6::Widgets Qt6::Test)
+    if(Qt6LinguistTools_FOUND)
+        qt_add_translations(femm_gui_tests TS_FILES translations/femm_de.ts
+                            RESOURCE_PREFIX "/i18n" LUPDATE_TARGET femm_gui_tests_lupdate
+                            LRELEASE_TARGET femm_gui_tests_lrelease)
+    endif()
 endif()
