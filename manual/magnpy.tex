@@ -937,6 +937,8 @@ extension, {\em e.g.} {\tt mi\_setprevious("mymodel.ans",1)}
 
 \item{\tt mi\_gettitle()} Returns the file path of the current document as a string.
 
+\item{\tt mi\_getgeometry()} Returns the whole model as one JSON string: problem settings ({\tt physics, units, type, depth, file}), {\tt nodes} as {\tt [x, y]} pairs, {\tt segments} and {\tt arcs} by node index (with boundary and group where set), block {\tt labels} with material, circuit, turns and magnetization direction, and the names of all {\tt materials, boundaries, circuits} and {\tt pointprops}. Meant for tools that need the complete model at once, e.g. {\tt json.loads(mi\_getgeometry())}.
+
 \end{itemize}
 
 \section{Magnetics Post Processor Scripting Command Set}

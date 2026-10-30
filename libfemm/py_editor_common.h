@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -84,6 +85,94 @@ inline void viewcmd_fwd(const std::string &cmd,
 }
 
 #define CHK() check_doc(s_doc, errmsg)
+
+inline std::string json_escape(const std::string &in)
+{
+    std::string o = "\"";
+    for (unsigned char c : in) {
+        switch (c) {
+        case '"': o += "\\\""; break;
+        case '\\': o += "\\\\"; break;
+        case '\n': o += "\\n"; break;
+        case '\r': o += "\\r"; break;
+        case '\t': o += "\\t"; break;
+        default:
+            if (c < 0x20) { char b[8]; snprintf(b, sizeof b, "\\u%04x", c); o += b; }
+            else o += (char)c;
+        }
+    }
+    return o + "\"";
+}
+
+inline std::string json_num(double v)
+{
+    if (!std::isfinite(v)) return "null";
+    char b[32];
+    snprintf(b, sizeof b, "%.12g", v);
+    return b;
+}
+
+inline std::string document_geometry_json(const DocumentBase &d)
+{
+    static const char *units[] = {"inches", "millimeters", "centimeters", "meters", "mils", "micrometers"};
+    static const char *phys[] = {"magnetics", "electrostatics", "heat", "current"};
+    std::string j = "{";
+    const int pt = d.physicsType();
+    j += "\"physics\":" + json_escape(pt >= 0 && pt < 4 ? phys[pt] : "unknown");
+    j += ",\"file\":" + json_escape(d.filePath);
+    j += ",\"units\":" + json_escape(d.LengthUnits >= 0 && d.LengthUnits < 6 ? units[d.LengthUnits] : "?");
+    j += ",\"type\":" + json_escape(d.ProblemType ? "axisymmetric" : "planar");
+    j += ",\"depth\":" + json_num(d.Depth);
+    j += ",\"nodes\":[";
+    for (size_t i = 0; i < d.nodelist.size(); i++) {
+        const auto &n = d.nodelist[i];
+        if (i) j += ",";
+        j += "[" + json_num(n.x) + "," + json_num(n.y) + "]";
+    }
+    j += "],\"segments\":[";
+    for (size_t i = 0; i < d.linelist.size(); i++) {
+        const auto &s = d.linelist[i];
+        if (i) j += ",";
+        j += "{\"n0\":" + std::to_string(s.n0) + ",\"n1\":" + std::to_string(s.n1);
+        if (!s.BoundaryMarker.empty() && s.BoundaryMarker != "<None>") j += ",\"boundary\":" + json_escape(s.BoundaryMarker);
+        if (s.InGroup) j += ",\"group\":" + std::to_string(s.InGroup);
+        j += "}";
+    }
+    j += "],\"arcs\":[";
+    for (size_t i = 0; i < d.arclist.size(); i++) {
+        const auto &a = d.arclist[i];
+        if (i) j += ",";
+        j += "{\"n0\":" + std::to_string(a.n0) + ",\"n1\":" + std::to_string(a.n1) +
+             ",\"angle\":" + json_num(a.ArcLength);
+        if (!a.BoundaryMarker.empty() && a.BoundaryMarker != "<None>") j += ",\"boundary\":" + json_escape(a.BoundaryMarker);
+        if (a.InGroup) j += ",\"group\":" + std::to_string(a.InGroup);
+        j += "}";
+    }
+    j += "],\"labels\":[";
+    for (size_t i = 0; i < d.blocklist.size(); i++) {
+        const auto &b = d.blocklist[i];
+        if (i) j += ",";
+        j += "{\"x\":" + json_num(b.x) + ",\"y\":" + json_num(b.y) + ",\"material\":" + json_escape(b.BlockType);
+        if (!b.InCircuit.empty() && b.InCircuit != "<None>")
+            j += ",\"circuit\":" + json_escape(b.InCircuit) + ",\"turns\":" + std::to_string(b.Turns);
+        if (b.MagDir != 0) j += ",\"magdir\":" + json_num(b.MagDir);
+        if (b.MaxArea > 0) j += ",\"maxarea\":" + json_num(b.MaxArea);
+        if (b.InGroup) j += ",\"group\":" + std::to_string(b.InGroup);
+        if (b.IsDefault) j += ",\"default\":true";
+        j += "}";
+    }
+    auto names = [&](const char *key, int n, auto get) {
+        j += std::string(",\"") + key + "\":[";
+        for (int i = 0; i < n; i++) { if (i) j += ","; j += json_escape(get(i)); }
+        j += "]";
+    };
+    j += "]";
+    names("materials", d.numMaterials(), [&](int i) { return d.materialName(i); });
+    names("boundaries", d.numBoundaries(), [&](int i) { return d.boundaryName(i); });
+    names("circuits", d.numCircuits(), [&](int i) { return d.circuitName(i); });
+    names("pointprops", d.numPointProps(), [&](int i) { return d.pointPropName(i); });
+    return j + "}";
+}
 
 template<typename DocType>
 void register_common_editor(femm_py::Module &m, const std::string &P,
@@ -300,6 +389,14 @@ void register_common_editor(femm_py::Module &m, const std::string &P,
     });
     m.def(P + "_gettitle", [&s_doc, errmsg]() -> std::string {
         CHK(); return s_doc->filePath;
+    });
+    // The whole model as one JSON string: problem settings, geometry, block
+    // labels and the names of every material / boundary / circuit / point
+    // property. For tools that need to see the model at once (an AI assistant
+    // over MCP, an external checker) instead of probing it piece by piece.
+    m.def(P + "_getgeometry", [&s_doc, errmsg]() -> std::string {
+        CHK();
+        return document_geometry_json(*s_doc);
     });
 
     // --- DXF ---
