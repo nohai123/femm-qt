@@ -199,7 +199,11 @@ static const char *onViewCommand(const char *cmd, int nargs, double *args)
         QString fname = c.mid(c.indexOf(':') + 1);
         // Grab whatever is in the active subwindow -- preprocessor editor or
         // results view, any physics.
-        QMdiSubWindow *sub = s_mainWindow->findChild<QMdiArea*>()->activeSubWindow();
+        // The window the command belongs to: mi_ grabs the model, mo_ the
+        // solution of the script-active document. (activeSubWindow() alone
+        // was null whenever FEMM was not the frontmost app -- the usual case
+        // when a script or an AI assistant drives it -- and no file appeared.)
+        QMdiSubWindow *sub = findSubWindowForCommand(c);
         if (sub && sub->widget()) {
             QPixmap pix = sub->widget()->grab();
             // Determine format from extension
