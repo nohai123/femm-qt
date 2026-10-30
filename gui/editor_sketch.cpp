@@ -797,8 +797,15 @@ void EditorWidget::drawRegions(QPainter &p)
         p.drawPolygon(sp);
     }
 
-    // Legend, top-left
-    if (!legend.isEmpty()) {
+    // Legend, top-left: materials, then boundary conditions in use
+    QMap<QString, QColor> bcLegend;
+    for (const auto &sg : m_doc->linelist)
+        if (boundaryColor(sg.BoundaryMarker).isValid())
+            bcLegend.insert(QString::fromStdString(sg.BoundaryMarker), boundaryColor(sg.BoundaryMarker));
+    for (const auto &a : m_doc->arclist)
+        if (boundaryColor(a.BoundaryMarker).isValid())
+            bcLegend.insert(QString::fromStdString(a.BoundaryMarker), boundaryColor(a.BoundaryMarker));
+    if (!legend.isEmpty() || !bcLegend.isEmpty()) {
         QFont font = p.font();
         font.setPointSize(9);
         p.setFont(font);
@@ -810,6 +817,13 @@ void EditorWidget::drawRegions(QPainter &p)
             p.setPen(QPen(QColor(90, 90, 90), 1));
             p.setBrush(c);
             p.drawRect(QRectF(8, y, 12, 12));
+            p.setPen(viewColors().text());
+            p.drawText(QPointF(26, y + 10), it.key());
+            y += fm.height() + 4;
+        }
+        for (auto it = bcLegend.cbegin(); it != bcLegend.cend(); ++it) {
+            p.setPen(QPen(it.value(), 3));
+            p.drawLine(QPointF(8, y + 6), QPointF(20, y + 6));
             p.setPen(viewColors().text());
             p.drawText(QPointF(26, y + 10), it.key());
             y += fm.height() + 4;

@@ -207,3 +207,13 @@ QColor materialColor(const QString &name)
     const uint h = qHash(name);
     return QColor::fromHsv((int)(h % 360), 110, 230, 110);
 }
+
+QColor boundaryColor(const std::string &name)
+{
+    if (name.empty() || name == "<None>") return QColor();
+    static const QColor palette[] = {
+        QColor(214, 39, 40), QColor(44, 160, 44), QColor(148, 103, 189), QColor(255, 127, 14),
+        QColor(23, 190, 207), QColor(227, 119, 194), QColor(140, 86, 75), QColor(188, 189, 34),
+    };
+    return palette[qHash(QString::fromStdString(name)) % 8];
+}

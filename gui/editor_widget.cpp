@@ -21,6 +21,7 @@
 #include "prop_dialogs.h"
 #include "arc_dialog.h"
 #include "view_colors.h"
+#include "region_map.h"
 
 #include <QPainter>
 #include <QMouseEvent>
@@ -350,7 +351,12 @@ void EditorWidget::drawSegments(QPainter &p)
         QPointF p0 = toScreen(m_doc->nodelist[seg.n0].x, m_doc->nodelist[seg.n0].y);
         QPointF p1 = toScreen(m_doc->nodelist[seg.n1].x, m_doc->nodelist[seg.n1].y);
 
-        p.setPen(QPen(seg.IsSelected ? viewColors().selected() : viewColors().line(), 1));
+        // Segments carrying a boundary condition are drawn thicker, in the
+        // condition's colour, so where each one applies is visible at a glance.
+        const QColor bc = boundaryColor(seg.BoundaryMarker);
+        if (seg.IsSelected) p.setPen(QPen(viewColors().selected(), bc.isValid() ? 2.5 : 1));
+        else if (bc.isValid()) p.setPen(QPen(bc, 2.5));
+        else p.setPen(QPen(viewColors().line(), 1));
         p.drawLine(p0, p1);
     }
 }
@@ -377,7 +383,10 @@ void EditorWidget::drawArcSegments(QPainter &p)
         if (k < 1) k = 1;
         double dt = arc.ArcLength * PI / (180.0 * k);
 
-        p.setPen(QPen(arc.IsSelected ? viewColors().selected() : viewColors().line(), 1));
+        const QColor bc = boundaryColor(arc.BoundaryMarker);
+        if (arc.IsSelected) p.setPen(QPen(viewColors().selected(), bc.isValid() ? 2.5 : 1));
+        else if (bc.isValid()) p.setPen(QPen(bc, 2.5));
+        else p.setPen(QPen(viewColors().line(), 1));
 
         CComplex pt = a0;
         QPointF prev = toScreen(pt.re, pt.im);

@@ -24,6 +24,7 @@
 #include <QString>
 #include <vector>
 #include <cstdint>
+#include <string>
 
 class DocumentBase;
 
@@ -59,3 +60,7 @@ private:
 // Display colour for a material, by name: air is nearly clear, copper orange,
 // steels grey, magnets red; anything else gets a stable pastel from its name.
 QColor materialColor(const QString &name);
+
+// Display colour for a boundary condition (stable per name, saturated so it
+// stands out from the region fills). Invalid colour for "no condition".
+QColor boundaryColor(const std::string &name);
