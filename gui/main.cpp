@@ -187,7 +187,10 @@ static const char *onViewCommand(const char *cmd, int nargs, double *args)
     if (c.contains("saveas:")) {
         QString fname = c.mid(c.indexOf(':') + 1);
         QMdiSubWindow *sub = findSubWindowForCommand(c);
-        if (sub) sub->setWindowTitle(QFileInfo(fname).fileName());
+        if (sub) {
+            sub->setWindowTitle(QFileInfo(fname).fileName());
+            if (auto *ed = qobject_cast<EditorWidget *>(sub->widget())) ed->markSaved();
+        }
         return nullptr;
     }
 

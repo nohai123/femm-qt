@@ -3,10 +3,12 @@
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-add_executable(femm_gui
-    main.cpp
+# Everything but main.cpp, so the GUI tests (tests/gui, FEMM_GUI_TESTS) can
+# link the same objects the application does.
+set(FEMM_GUI_SOURCES
     mainwindow.cpp
     editor_widget.cpp
+    editor_sketch.cpp
     mouse_release_gate.cpp
     results_widget.cpp
     scalar_results_widget.cpp
@@ -44,6 +46,11 @@ add_executable(femm_gui
     output_dialog.cpp
     copy_move_dialog.cpp
     arc_dialog.cpp
+)
+
+add_executable(femm_gui
+    main.cpp
+    ${FEMM_GUI_SOURCES}
     icons.qrc
     $<$<PLATFORM_ID:Windows>:femm.rc>
 )
@@ -108,4 +115,21 @@ if(APPLE)
     target_sources(femm_gui PRIVATE "${FEMM_ICNS}")
     set_source_files_properties("${FEMM_ICNS}" PROPERTIES
         MACOSX_PACKAGE_LOCATION "Resources")
+endif()
+
+# --- Offscreen GUI tests (tests/gui) ----------------------------------------
+# Drive EditorWidget with synthetic mouse/keyboard events under Qt's offscreen
+# platform. Off by default; enable with -DFEMM_GUI_TESTS=ON, run with
+#   QT_QPA_PLATFORM=offscreen build/bin/femm_gui_tests
+option(FEMM_GUI_TESTS "Build the offscreen GUI tests (needs Qt6 Test)" OFF)
+if(FEMM_GUI_TESTS)
+    find_package(Qt6 COMPONENTS Test REQUIRED)
+    add_executable(femm_gui_tests
+        "${CMAKE_SOURCE_DIR}/tests/gui/gui_tests.cpp"
+        ${FEMM_GUI_SOURCES}
+        icons.qrc
+    )
+    set_target_properties(femm_gui_tests PROPERTIES MACOSX_BUNDLE OFF)
+    target_include_directories(femm_gui_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(femm_gui_tests PRIVATE femm_ipc Qt6::Widgets Qt6::Test)
 endif()

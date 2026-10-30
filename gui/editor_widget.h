@@ -13,6 +13,8 @@
 
 #include <QWidget>
 #include <QColor>
+#include <QPointF>
+#include <vector>
 
 class DocumentBase;
 
@@ -74,6 +76,24 @@ public:
     int meshEdgeCount() const { return (int)m_meshLines.size() + (int)m_greyMeshLines.size(); }
     int greyMeshLineCount() const { return (int)m_greyMeshLines.size(); }
 
+    // CAD-style sketch tools (editor_sketch.cpp). While one is active, left
+    // clicks place points anywhere -- nodes are created as needed -- instead
+    // of following the classic node-then-connect workflow. The classic edit
+    // action stays set (to Segment) so right-click selection, Move, Copy etc.
+    // keep working on what the tool drew. setEditAction() leaves the tool.
+    enum SketchTool { SketchNone = 0, SketchLine, SketchRect, SketchCircle, SketchArc3 };
+    void setSketchTool(int tool);
+    int sketchTool() const { return m_sketchTool; }
+
+    // Object snap: endpoints, midpoints, arc centres, points on lines, plus
+    // horizontal/vertical alignment with existing nodes.
+    void setObjectSnap(bool on) { m_objectSnap = on; update(); }
+    bool objectSnap() const { return m_objectSnap; }
+
+    // Modified tracking: the document's edit serial at the last save/open.
+    void markSaved();
+    bool hasUnsavedEdits() const;
+
     // Open properties for selected entities (space bar)
     void openSelected();
 
@@ -81,6 +101,7 @@ signals:
     void coordinatesChanged(double x, double y);
     void statusMessage(const QString &msg);
     void editActionChanged(int action);
+    void sketchToolChanged(int tool);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -89,8 +110,10 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void leaveEvent(QEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     bool focusNextPrevChild(bool next) override { (void)next; return false; }
+    bool event(QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
 
 private:
@@ -108,6 +131,39 @@ private:
     void drawMesh(QPainter &p);
 
     DocumentBase *m_doc;
+    unsigned long m_savedSerial = 0;
+
+    // ---- Sketch tools / snapping (editor_sketch.cpp) ----
+    enum SnapKind { SnapFree = 0, SnapGrid, SnapEndpoint, SnapMidpoint,
+                    SnapCenter, SnapOnLine };
+    struct Snap {
+        double x = 0, y = 0;
+        int kind = SnapFree;
+        // Alignment guides: the snapped point shares x (or y) with this node
+        bool alignX = false, alignY = false;
+        double alignXFromY = 0, alignYFromX = 0;
+    };
+    Snap computeSnap(double x, double y, bool shift, bool forNode) const;
+    void sketchPress(double x, double y, int snapKind);
+    void sketchFinish();
+    bool sketchKey(QKeyEvent *event);
+    bool sketchTarget(double &x, double &y) const;   // cursor or typed values
+    void drawSketchOverlay(QPainter &p);
+    void drawSnapMarker(QPainter &p, const Snap &s);
+    void emitSketchHint();
+    int nodeAtOrNew(double x, double y);
+    int pickNode(double x, double y) const;           // -1 if none near
+    bool askPoint(const QString &title, double &x, double &y);
+    double pickTolerance() const { return 10.0 / m_mag; }
+
+    int m_sketchTool = SketchNone;
+    bool m_objectSnap = true;
+    std::vector<QPointF> m_sketchPts;   // points placed so far (drawing coords)
+    int m_chainStart = -1;              // first node of the current polyline
+    Snap m_snap;                        // snap under the cursor
+    bool m_hasCursor = false;
+    QString m_input[2];                 // typed length/angle (or width/height)
+    int m_inputField = 0;
 
     // View transform
     double m_ox = 0.0, m_oy = 0.0;

@@ -117,6 +117,8 @@ protected:
     // Drop a .fem/.fee/.feh/.fec or a solution file on the window to open it.
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
+    // Quitting asks about every preprocessor document with unsaved changes.
+    void closeEvent(QCloseEvent *event) override;
 
 private:
     void createCommonMenus();
@@ -153,6 +155,19 @@ private:
 
     void doRepaintNow();
 
+    // Unsaved-changes handling. A document counts as modified when saving it
+    // now would write something different from the file on disk (or, for a
+    // never-saved document, when it holds anything at all) -- this catches
+    // property edits too, which do not go through the undo stack.
+    bool documentDiffersFromDisk(DocumentBase *doc) const;
+    // Asks Save / Discard / Cancel for a modified editor tab. Returns false
+    // when the close should be cancelled.
+    bool confirmDiscard(QMdiSubWindow *sub);
+    // Appends a bullet to the tab title of editors with unsaved geometry edits.
+    void refreshModifiedMarks();
+    QTimer *m_modifiedTicker = nullptr;
+    bool m_closingAll = false;
+
     QMdiArea *m_mdiArea;
     QSocketNotifier *m_listenNotifier = nullptr;
     QSocketNotifier *m_clientNotifier = nullptr;
@@ -185,6 +200,9 @@ private:
     QAction *m_actArc = nullptr;
     QAction *m_actBlock = nullptr;
     QAction *m_actGroup = nullptr;
+    // CAD-style sketch tools (EditorWidget::SketchTool 1..4), same exclusive group
+    QAction *m_actSketch[5] = {};
+    QAction *m_objectSnapMenu = nullptr;
 
     // Postprocessor UI
     QToolBar *m_ppTopBar = nullptr;

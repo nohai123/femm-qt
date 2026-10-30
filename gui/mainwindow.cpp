@@ -65,6 +65,11 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QTimer>
+#include <QPainter>
+#include <QCloseEvent>
+#include <QTemporaryFile>
+#include <QDir>
+#include <QFile>
 #include <QMimeData>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -86,6 +91,48 @@ static bool femmOpenable(const QString &path);
 static QIcon icon(const char *name)
 {
     return QIcon(QString(":/icons/%1.png").arg(name));
+}
+
+// Line-art icons for the sketch tools, painted at 1x and 2x so they stay
+// sharp on Retina displays (the legacy PNGs are 16x15 bitmaps).
+static QIcon sketchIcon(int tool)
+{
+    QIcon ic;
+    for (int scale : {1, 2}) {
+        QPixmap pm(16 * scale, 15 * scale);
+        pm.setDevicePixelRatio(scale);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.setPen(QPen(QColor(0, 0, 200), 1.4));
+        p.setBrush(Qt::NoBrush);
+        auto dot = [&](double x, double y) {
+            p.save(); p.setPen(Qt::NoPen); p.setBrush(Qt::black);
+            p.drawRect(QRectF(x - 1.5, y - 1.5, 3, 3)); p.restore();
+        };
+        switch (tool) {
+        case EditorWidget::SketchLine: {
+            QPolygonF pl; pl << QPointF(2, 12) << QPointF(6, 4) << QPointF(11, 10) << QPointF(14, 3);
+            p.drawPolyline(pl);
+            for (auto &pt : pl) dot(pt.x(), pt.y());
+            break;
+        }
+        case EditorWidget::SketchRect:
+            p.drawRect(QRectF(2.5, 3.5, 11, 8));
+            dot(2.5, 3.5); dot(13.5, 11.5);
+            break;
+        case EditorWidget::SketchCircle:
+            p.drawEllipse(QPointF(8, 7.5), 5.5, 5.5);
+            dot(8, 7.5);
+            break;
+        case EditorWidget::SketchArc3:
+            p.drawArc(QRectF(2, 3, 12, 14), 20 * 16, 140 * 16);
+            dot(2.5, 7.5); dot(8, 3); dot(13.5, 7.5);
+            break;
+        }
+        ic.addPixmap(pm);
+    }
+    return ic;
 }
 
 MainWindow::MainWindow(TcpServer *server, QWidget *parent)
@@ -210,6 +257,12 @@ MainWindow::MainWindow(TcpServer *server, QWidget *parent)
     m_repaintTicker->setInterval(100);
     connect(m_repaintTicker, &QTimer::timeout,
             this, &MainWindow::onRepaintTick);
+
+    // Modified marker on editor tabs. Cheap: compares two integers per tab.
+    m_modifiedTicker = new QTimer(this);
+    m_modifiedTicker->setInterval(500);
+    connect(m_modifiedTicker, &QTimer::timeout, this, &MainWindow::refreshModifiedMarks);
+    m_modifiedTicker->start();
 }
 
 MainWindow::~MainWindow() {}
@@ -309,12 +362,16 @@ EditorWidget *MainWindow::addEditorTab(DocumentBase *doc, const QString &title)
     connect(editor, &EditorWidget::coordinatesChanged, this, &MainWindow::updateCoordinates);
     connect(editor, &EditorWidget::statusMessage, this, &MainWindow::updateStatus);
     connect(editor, &EditorWidget::editActionChanged, this, &MainWindow::onEditActionChanged);
+    connect(editor, &EditorWidget::sketchToolChanged, this, [this](int tool) {
+        if (tool > 0 && tool < 5 && m_actSketch[tool]) m_actSketch[tool]->setChecked(true);
+    });
 
     // Apply saved preferences
     QSettings settings;
     editor->setShowGrid(settings.value("editor/showGrid", true).toBool());
     editor->setSnapToGrid(settings.value("editor/snapToGrid", false).toBool());
     editor->setShowNames(settings.value("editor/showNames", true).toBool());
+    editor->setObjectSnap(settings.value("editor/objectSnap", true).toBool());
 
     // Apply default problem settings for new documents
     if (doc->filePath.empty()) {
@@ -1088,7 +1145,14 @@ void MainWindow::syncPreprocessorMenus(EditorWidget *editor)
         case 3: modeAct = m_actArc;     break;
         case 4: modeAct = m_actGroup;   break;
     }
+    if (editor->sketchTool() > 0 && editor->sketchTool() < 5)
+        modeAct = m_actSketch[editor->sketchTool()];
     if (modeAct) modeAct->setChecked(true);
+    if (m_objectSnapMenu) {
+        m_objectSnapMenu->blockSignals(true);
+        m_objectSnapMenu->setChecked(editor->objectSnap());
+        m_objectSnapMenu->blockSignals(false);
+    }
 }
 
 // ================================================================
@@ -1192,6 +1256,7 @@ void MainWindow::onSave()
     if (!doc->SaveDocument(doc->filePath))
         QMessageBox::warning(this, tr("Save Failed"),
             tr("Could not save to %1").arg(QString::fromStdString(doc->filePath)));
+    else editor->markSaved();
     auto *sub = m_mdiArea->activeSubWindow();
     if (sub) sub->setWindowTitle(QFileInfo(QString::fromStdString(doc->filePath)).fileName());
 }
@@ -1232,6 +1297,7 @@ void MainWindow::onSaveAs()
             tr("Could not save to %1").arg(path));
         return;
     }
+    editor->markSaved();
     // Find the subwindow containing this editor (don't rely on activeSubWindow
     // which may be stale after the file dialog)
     for (auto *sub : m_mdiArea->subWindowList())
@@ -1364,6 +1430,10 @@ void MainWindow::onAnalyze()
             QMessageBox::warning(this, tr("Analysis Failed"), QString::fromUtf8(errmsg));
     } else {
         updateStatus("Analysis complete");
+        // One click from model to results: open (or reload) the solution
+        // instead of making the user press View Results as a second step.
+        if (QSettings().value("analysis/autoShowResults", true).toBool())
+            onViewResults();
     }
 }
 
@@ -1640,7 +1710,8 @@ void MainWindow::createCommonMenus()
             updateStatus(tr("Exported %1").arg(QFileInfo(path).fileName()));
     });
     file->addSeparator();
-    file->addAction(tr("E&xit"), QKeySequence::Quit, qApp, &QApplication::quit);
+    // close(), not QApplication::quit: closeEvent asks about unsaved documents.
+    file->addAction(tr("E&xit"), QKeySequence::Quit, this, [this]() { close(); });
 
     m_editMenu = menuBar()->addMenu(tr("&Edit"));
     QMenu *edit = m_editMenu;
@@ -1857,6 +1928,15 @@ void MainWindow::createPreprocessorUI()
             m_snapGridTB->blockSignals(false);
         }
     });
+    m_objectSnapMenu = m_preMenuGrid->addAction(tr("&Object Snap"));
+    m_objectSnapMenu->setCheckable(true);
+    m_objectSnapMenu->setToolTip(tr("Snap to endpoints, midpoints, centres and lines while drawing"));
+    m_objectSnapMenu->setChecked(QSettings().value("editor/objectSnap", true).toBool());
+    connect(m_objectSnapMenu, &QAction::toggled, [this](bool on) {
+        QSettings().setValue("editor/objectSnap", on);
+        for (auto *sub : m_mdiArea->subWindowList())
+            if (auto *e = qobject_cast<EditorWidget *>(sub->widget())) e->setObjectSnap(on);
+    });
     // Mnemonic is Z, not S: "&Show Grid" already claims S in this menu, and a
     // duplicate accelerator only cycles the highlight instead of activating.
     m_preMenuGrid->addAction(tr("Set Grid Si&ze..."), QKeySequence(),
@@ -1986,6 +2066,28 @@ void MainWindow::createPreprocessorUI()
     m_modeGroup = new QActionGroup(this);
     m_modeGroup->setExclusive(true);
 
+    // Sketch tools first: they are the quickest way to draw geometry.
+    {
+        struct { int tool; const char *name; const char *tip; } tools[] = {
+            {EditorWidget::SketchLine,   QT_TR_NOOP("Line"),      QT_TR_NOOP("Line / polyline (L) -- click points, nodes are created automatically")},
+            {EditorWidget::SketchRect,   QT_TR_NOOP("Rectangle"), QT_TR_NOOP("Rectangle (R) -- two opposite corners")},
+            {EditorWidget::SketchCircle, QT_TR_NOOP("Circle"),    QT_TR_NOOP("Circle (C) -- centre, then radius")},
+            {EditorWidget::SketchArc3,   QT_TR_NOOP("3-Point Arc"), QT_TR_NOOP("3-point arc (A) -- start, end, point on the arc")},
+        };
+        for (auto &t : tools) {
+            QAction *a = m_preTopBar2->addAction(sketchIcon(t.tool), tr(t.name));
+            a->setCheckable(true);
+            a->setToolTip(tr(t.tip));
+            m_modeGroup->addAction(a);
+            const int tool = t.tool;
+            connect(a, &QAction::triggered, this, [this, tool]() {
+                auto *e = activeEditor(); if (e) e->setSketchTool(tool);
+            });
+            m_actSketch[tool] = a;
+        }
+        m_preTopBar2->addSeparator();
+    }
+
     m_actNode = m_preTopBar2->addAction(icon("node"), tr("Node"));
     m_actNode->setCheckable(true); m_actNode->setChecked(true);
     m_actNode->setToolTip(tr("Node mode")); m_modeGroup->addAction(m_actNode);
@@ -2023,6 +2125,11 @@ void MainWindow::createPreprocessorUI()
             act->blockSignals(false);
         });
     };
+    addModeMenuItem(tr("&Line"), m_actSketch[EditorWidget::SketchLine]);
+    addModeMenuItem(tr("&Rectangle"), m_actSketch[EditorWidget::SketchRect]);
+    addModeMenuItem(tr("&Circle"), m_actSketch[EditorWidget::SketchCircle]);
+    addModeMenuItem(tr("3-&Point Arc"), m_actSketch[EditorWidget::SketchArc3]);
+    m_preMenuOperation->addSeparator();
     addModeMenuItem(tr("&Node"), m_actNode);
     addModeMenuItem(tr("&Segment"), m_actSegment);
     addModeMenuItem(tr("&Arc Segment"), m_actArc);
@@ -2707,6 +2814,17 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
     // dispatches this keypress, which raises KeyboardInterrupt at the next VM
     // branch. Esc carries no modifier, so it doesn't shadow Ctrl+C/Copy, and
     // this only fires while a script is actually running.
+    // Closing an editor tab with unsaved changes asks first -- but never when
+    // a script (console, Run Script, or an IPC client such as pyfemm) closes
+    // it: mi_close() must not block on a dialog nobody is there to answer.
+    if (event->type() == QEvent::Close && !m_closingAll && !py_is_running()) {
+        if (auto *sub = qobject_cast<QMdiSubWindow *>(obj)) {
+            if (!confirmDiscard(sub)) {
+                event->ignore();
+                return true;
+            }
+        }
+    }
     if (event->type() == QEvent::KeyPress && py_is_running()) {
         auto *ke = static_cast<QKeyEvent *>(event);
         if (ke->key() == Qt::Key_Escape) {
@@ -2715,6 +2833,88 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
         }
     }
     return QMainWindow::eventFilter(obj, event);
+}
+
+// ================================================================
+// Unsaved changes
+// ================================================================
+
+bool MainWindow::documentDiffersFromDisk(DocumentBase *doc) const
+{
+    if (!doc) return false;
+    if (doc->filePath.empty())
+        return !doc->nodelist.empty() || !doc->linelist.empty() ||
+               !doc->arclist.empty() || !doc->blocklist.empty() ||
+               doc->numMaterials() > 0 || doc->numBoundaries() > 0 ||
+               doc->numCircuits() > 0;
+
+    QFile onDisk(QString::fromStdString(doc->filePath));
+    if (!onDisk.open(QIODevice::ReadOnly)) return true;
+
+    QTemporaryFile tmp(QDir::tempPath() + "/femm_cmp_XXXXXX" +
+                       QString::fromStdString(doc->fileExtension()));
+    if (!tmp.open()) return true;
+    tmp.close();
+    if (!doc->SaveDocument(tmp.fileName().toStdString())) return true;
+    QFile current(tmp.fileName());
+    if (!current.open(QIODevice::ReadOnly)) return true;
+    return current.readAll() != onDisk.readAll();
+}
+
+bool MainWindow::confirmDiscard(QMdiSubWindow *sub)
+{
+    auto *editor = sub ? qobject_cast<EditorWidget *>(sub->widget()) : nullptr;
+    if (!editor || !documentDiffersFromDisk(editor->document())) return true;
+
+    m_mdiArea->setActiveSubWindow(sub);
+    QString name = sub->windowTitle();
+    if (name.endsWith(QStringLiteral(" •"))) name.chop(2);
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Warning);
+    box.setText(tr("Do you want to save the changes to \"%1\"?").arg(name));
+    box.setInformativeText(tr("Your changes will be lost if you don't save them."));
+    box.setStandardButtons(QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+    box.setDefaultButton(QMessageBox::Save);
+    switch (box.exec()) {
+    case QMessageBox::Save:
+        onSave();
+        // Save As may have been cancelled, or the write may have failed.
+        return !documentDiffersFromDisk(editor->document());
+    case QMessageBox::Discard:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void MainWindow::refreshModifiedMarks()
+{
+    static const QString mark = QStringLiteral(" •");
+    for (auto *sub : m_mdiArea->subWindowList()) {
+        auto *editor = qobject_cast<EditorWidget *>(sub->widget());
+        if (!editor) continue;
+        QString title = sub->windowTitle();
+        const bool marked = title.endsWith(mark);
+        const bool modified = editor->hasUnsavedEdits() ||
+                              (editor->document() && editor->document()->filePath.empty() &&
+                               documentDiffersFromDisk(editor->document()));
+        if (modified && !marked) sub->setWindowTitle(title + mark);
+        else if (!modified && marked) { title.chop(mark.size()); sub->setWindowTitle(title); }
+    }
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    for (auto *sub : m_mdiArea->subWindowList()) {
+        if (!confirmDiscard(sub)) {
+            event->ignore();
+            return;
+        }
+    }
+    // Every document has been dealt with; the sub-windows must not ask again
+    // as they are torn down.
+    m_closingAll = true;
+    event->accept();
 }
 
 OutputDialog *MainWindow::outputDialog()

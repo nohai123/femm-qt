@@ -157,6 +157,12 @@ public:
     void redo();
     void clearUndoHistory();
 
+    // Bumped by pushUndo/undo/redo, i.e. by every user edit of the geometry.
+    // The GUI compares it against the value at the last save to flag a
+    // document as modified. (Property-only edits are caught on close by
+    // comparing the serialized document against the file on disk.)
+    unsigned long editSerial = 0;
+
 private:
     static constexpr int MAX_UNDO_LEVELS = 50;
 

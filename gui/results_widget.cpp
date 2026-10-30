@@ -8,6 +8,7 @@
 #include "results_widget.h"
 #include "coord_display.h"
 #include "zoom_fit.h"
+#include "view_navigation.h"
 #include "complex_format.h"
 #include "results_doc.h"
 #include "postproc_select.h"
@@ -1130,19 +1131,7 @@ void ResultsWidget::mouseReleaseEvent(QMouseEvent *event)
 
 void ResultsWidget::wheelEvent(QWheelEvent *event)
 {
-    if (std::abs(event->angleDelta().y()) < 15) return;
-
-    double xd, yd;
-    QPoint pos = event->position().toPoint();
-    toDrawing(pos.x(), pos.y(), xd, yd);
-
-    double factor = (event->angleDelta().y() > 0) ? 1.25 : (1.0 / 1.25);
-    m_mag *= factor;
-    if (m_mag < 0.01) m_mag = 0.01;
-
-    m_ox = xd - pos.x() / m_mag;
-    m_oy = yd - (height() - 1 - pos.y()) / m_mag;
-    update();
+    if (femmnav::wheel(this, event, m_mag, m_ox, m_oy)) update();
 }
 
 void ResultsWidget::showPointProperties(double xd, double yd)
@@ -1219,6 +1208,7 @@ void ResultsWidget::showPointProperties(double xd, double yd)
 
 bool ResultsWidget::event(QEvent *ev)
 {
+    if (femmnav::gesture(this, ev, m_mag, m_ox, m_oy)) { update(); return true; }
     // Intercept Tab before Qt's focus system consumes it
     if (ev->type() == QEvent::KeyPress) {
         auto *ke = static_cast<QKeyEvent*>(ev);

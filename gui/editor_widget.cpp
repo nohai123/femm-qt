@@ -12,6 +12,7 @@
 #include "editor_widget.h"
 #include "coord_display.h"
 #include "zoom_fit.h"
+#include "view_navigation.h"
 #include "document.h"
 #include "mag_document.h"
 #include "elec_document.h"
@@ -49,6 +50,7 @@
 EditorWidget::EditorWidget(DocumentBase *doc, QWidget *parent)
     : QWidget(parent)
     , m_doc(doc)
+    , m_savedSerial(doc ? doc->editSerial : 0)
 {
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
@@ -65,6 +67,16 @@ EditorWidget::~EditorWidget()
     doc_registry_remove(m_doc);
     delete m_doc;
     m_doc = nullptr;
+}
+
+void EditorWidget::markSaved()
+{
+    if (m_doc) m_savedSerial = m_doc->editSerial;
+}
+
+bool EditorWidget::hasUnsavedEdits() const
+{
+    return m_doc && m_doc->editSerial != m_savedSerial;
 }
 
 // ================================================================
@@ -101,7 +113,21 @@ void EditorWidget::setEditAction(int action)
     if (m_doc) m_doc->UnselectAll();
     m_editAction = action;
     m_firstPoint = -1;
+    if (m_sketchTool != SketchNone) {
+        m_sketchTool = SketchNone;
+        m_sketchPts.clear();
+        m_chainStart = -1;
+        emit sketchToolChanged(SketchNone);
+    }
     emit editActionChanged(action);
+    static const char *hints[] = {
+        QT_TR_NOOP("Node: click to place a node (snaps to lines and points; Tab: coordinates)."),
+        QT_TR_NOOP("Segment: click two nodes to connect them. Right-click selects."),
+        QT_TR_NOOP("Block label: click inside a region, then Space to assign a material."),
+        QT_TR_NOOP("Arc: click two nodes to connect them with an arc. Right-click selects."),
+        QT_TR_NOOP("Group: right-click an object to select its whole group."),
+    };
+    if (action >= 0 && action < 5) emit statusMessage(tr(hints[action]));
     update();
 }
 
@@ -248,6 +274,8 @@ void EditorWidget::paintEvent(QPaintEvent *)
     drawArcSegments(p);
     drawNodes(p);
     drawBlockLabels(p);
+
+    drawSketchOverlay(p);
 
     // Rubber band for zoom/select window
     if (m_zoomWndFlag == 2 || m_selectWndFlag == 2) {
@@ -477,24 +505,42 @@ void EditorWidget::mousePressEvent(QMouseEvent *event)
         }
         if (m_selectCircFlag == 2) return;
 
-        // EditAction 0: Add node
+        const bool shift = event->modifiers() & Qt::ShiftModifier;
+
+        // Sketch tools: place a point (snapped), nodes are created as needed
+        if (m_sketchTool != SketchNone) {
+            m_snap = computeSnap(m_mx, m_my, shift, true);
+            m_hasCursor = true;
+            double tx, ty;
+            if (sketchTarget(tx, ty)) sketchPress(tx, ty, m_snap.kind);
+            return;
+        }
+
+        // EditAction 0: Add node (at the snapped point: onto a line splits it)
         if (m_editAction == 0) {
+            Snap sn = computeSnap(m_mx, m_my, shift, true);
             m_doc->pushUndo();
-            m_doc->AddNode(cx, cy, 1.0 / m_mag);
+            m_doc->AddNode(sn.x, sn.y, 1.0 / m_mag);
             update();
         }
 
-        // EditAction 1: Add segment (two-click)
+        // EditAction 1: Add segment (two-click). Only a node near the click
+        // counts -- a click in empty space no longer grabs whichever node in
+        // the model happens to be closest.
         if (m_editAction == 1) {
+            const int picked = pickNode(m_mx, m_my);
+            if (picked < 0) {
+                emit statusMessage(tr("No node here. Click on a node -- or use the Line tool (L) to draw freely."));
+                return;
+            }
             if (m_firstPoint < 0) {
-                if (m_doc->nodelist.empty()) return;
-                m_firstPoint = m_doc->ClosestNode(cx, cy);
+                m_firstPoint = picked;
                 m_doc->nodelist[m_firstPoint].ToggleSelect();
                 update();
             } else {
                 m_doc->pushUndo();
                 m_doc->nodelist[m_firstPoint].ToggleSelect();
-                int n1 = m_doc->ClosestNode(cx, cy);
+                int n1 = picked;
                 m_doc->AddSegment(m_firstPoint, n1);
                 m_firstPoint = -1;
                 update();
@@ -510,13 +556,17 @@ void EditorWidget::mousePressEvent(QMouseEvent *event)
 
         // EditAction 3: Add arc segment (two-click + dialog)
         if (m_editAction == 3) {
+            const int picked = pickNode(m_mx, m_my);
+            if (picked < 0) {
+                emit statusMessage(tr("No node here. Click on a node -- or use the Arc tool (A) to draw freely."));
+                return;
+            }
             if (m_firstPoint < 0) {
-                if (m_doc->nodelist.empty()) return;
-                m_firstPoint = m_doc->ClosestNode(cx, cy);
+                m_firstPoint = picked;
                 m_doc->nodelist[m_firstPoint].ToggleSelect();
                 update();
             } else {
-                int n1 = m_doc->ClosestNode(cx, cy);
+                int n1 = picked;
                 int n0 = m_firstPoint;
                 m_doc->nodelist[n0].ToggleSelect();
                 m_firstPoint = -1;
@@ -564,6 +614,11 @@ void EditorWidget::mousePressEvent(QMouseEvent *event)
             m_doc->nodelist[m_firstPoint].IsSelected = false;
             m_firstPoint = -1;
             update();
+            return;
+        }
+        // Right-click ends a sketch in progress (like Enter / Esc)
+        if (m_sketchTool != SketchNone && !m_sketchPts.empty()) {
+            sketchFinish();
             return;
         }
 
@@ -625,9 +680,20 @@ void EditorWidget::mouseMoveEvent(QMouseEvent *event)
 {
     toDrawing(event->pos().x(), event->pos().y(), m_mx, m_my);
 
-    // Show snapped coordinates in the status bar
+    // Show snapped coordinates in the status bar. While creating geometry the
+    // object snap decides the point, and the view repaints for its marker and
+    // the rubber-band preview.
+    m_hasCursor = true;
+    const bool creating = m_sketchTool != SketchNone || m_editAction == 0;
     double dx = m_mx, dy = m_my;
-    applySnap(dx, dy);
+    if (creating) {
+        m_snap = computeSnap(m_mx, m_my, event->modifiers() & Qt::ShiftModifier, true);
+        dx = m_snap.x; dy = m_snap.y;
+        if (m_sketchTool != SketchNone) sketchTarget(dx, dy);
+        update();
+    } else {
+        applySnap(dx, dy);
+    }
     emit coordinatesChanged(dx, dy);
 
     if (m_panning) {
@@ -645,6 +711,12 @@ void EditorWidget::mouseMoveEvent(QMouseEvent *event)
 
 void EditorWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
+    // Double-click ends a polyline (the first click of the pair already
+    // placed the last point).
+    if (m_doc && event->button() == Qt::LeftButton && m_sketchTool == SketchLine) {
+        sketchFinish();
+        return;
+    }
     if (!m_doc || event->button() != Qt::RightButton) {
         QWidget::mouseDoubleClickEvent(event);
         return;
@@ -837,22 +909,24 @@ void EditorWidget::mouseReleaseEvent(QMouseEvent *event)
     }
 }
 
+void EditorWidget::leaveEvent(QEvent *event)
+{
+    // Hide the snap marker / preview while the cursor is outside the view.
+    m_hasCursor = false;
+    update();
+    QWidget::leaveEvent(event);
+}
+
+bool EditorWidget::event(QEvent *ev)
+{
+    // Trackpad pinch zoom (macOS native gesture)
+    if (femmnav::gesture(this, ev, m_mag, m_ox, m_oy)) { update(); return true; }
+    return QWidget::event(ev);
+}
+
 void EditorWidget::wheelEvent(QWheelEvent *event)
 {
-    // Ignore tiny scroll deltas (spurious trackpad events during two-finger tap)
-    if (std::abs(event->angleDelta().y()) < 15) return;
-
-    double xd, yd;
-    QPoint pos = event->position().toPoint();
-    toDrawing(pos.x(), pos.y(), xd, yd);
-
-    double factor = (event->angleDelta().y() > 0) ? 1.25 : (1.0 / 1.25);
-    m_mag *= factor;
-    if (m_mag < 0.01) m_mag = 0.01;
-
-    m_ox = xd - pos.x() / m_mag;
-    m_oy = yd - (height() - 1 - pos.y()) / m_mag;
-    update();
+    if (femmnav::wheel(this, event, m_mag, m_ox, m_oy)) update();
 }
 
 // ================================================================
@@ -861,6 +935,24 @@ void EditorWidget::wheelEvent(QWheelEvent *event)
 
 void EditorWidget::keyPressEvent(QKeyEvent *event)
 {
+    if (sketchKey(event)) return;
+
+    // One-letter tool shortcuts (only when no modifier is held, so Cmd+C etc.
+    // keep their meaning).
+    if (!(event->modifiers() & (Qt::ControlModifier | Qt::MetaModifier | Qt::AltModifier))) {
+        switch (event->key()) {
+        case Qt::Key_L: setSketchTool(SketchLine); return;
+        case Qt::Key_R: setSketchTool(SketchRect); return;
+        case Qt::Key_C: setSketchTool(SketchCircle); return;
+        case Qt::Key_A: setSketchTool(SketchArc3); return;
+        case Qt::Key_N: setEditAction(0); return;
+        case Qt::Key_S: setEditAction(1); return;
+        case Qt::Key_B: setEditAction(2); return;
+        case Qt::Key_G: setEditAction(4); return;
+        default: break;
+        }
+    }
+
     switch (event->key()) {
     case Qt::Key_Space:
         openSelected();
@@ -903,32 +995,8 @@ void EditorWidget::keyPressEvent(QKeyEvent *event)
             // Enter point by coordinates. The pair is labelled and interpreted
             // per the document's display mode: (x,y), (r,z) axisymmetric, or
             // radius/degrees in polar.
-            const int coords = m_doc->Coords;
-            double c1, c2;
-            QString l1, l2;
-            coorddisp::toDisplay(coords, m_mx, m_my, c1, c2);
-            coorddisp::entryLabels(coords, m_doc->ProblemType, l1, l2);
-            QDialog dlg(this);
-            dlg.setWindowTitle(m_editAction == 0 ? tr("Enter Node Point") : tr("Enter Block Label Point"));
-            auto *form = new QFormLayout;
-            auto *xEdit = new PyLineEdit;
-            auto *yEdit = new PyLineEdit;
-            xEdit->setText(QString::number(c1, 'g', 10));
-            yEdit->setText(QString::number(c2, 'g', 10));
-            xEdit->selectAll();
-            form->addRow(l1, xEdit);
-            form->addRow(l2, yEdit);
-            auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-            QObject::connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-            QObject::connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-            auto *layout = new QVBoxLayout(&dlg);
-            layout->addLayout(form);
-            layout->addWidget(buttons);
-            xEdit->setFocus();
-            if (dlg.exec() == QDialog::Accepted) {
-                double x, y;
-                coorddisp::fromDisplay(coords, xEdit->evaluateAsDouble(c1),
-                                       yEdit->evaluateAsDouble(c2), x, y);
+            double x = m_mx, y = m_my;
+            if (askPoint(m_editAction == 0 ? tr("Enter Node Point") : tr("Enter Block Label Point"), x, y)) {
                 m_doc->pushUndo();
                 if (m_editAction == 0)
                     m_doc->AddNode(x, y, 1.0 / m_mag);
@@ -942,6 +1010,7 @@ void EditorWidget::keyPressEvent(QKeyEvent *event)
     case Qt::Key_F3:
         // Halve all mesh sizes (refine)
         if (m_doc) {
+            m_doc->pushUndo();
             for (auto &b : m_doc->blocklist)
                 if (b.MaxArea > 0) b.MaxArea /= 4.0;
             update();
@@ -952,6 +1021,7 @@ void EditorWidget::keyPressEvent(QKeyEvent *event)
     case Qt::Key_F4:
         // Double all mesh sizes (coarsen)
         if (m_doc) {
+            m_doc->pushUndo();
             for (auto &b : m_doc->blocklist)
                 b.MaxArea *= 4.0;
             update();

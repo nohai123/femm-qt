@@ -1529,6 +1529,7 @@ void DocumentBase::restoreSnapshot(const GeometrySnapshot &snap)
 
 void DocumentBase::pushUndo()
 {
+    ++editSerial;
     m_undoStack.push_back(takeSnapshot());
     if ((int)m_undoStack.size() > MAX_UNDO_LEVELS)
         m_undoStack.pop_front();
@@ -1540,6 +1541,7 @@ bool DocumentBase::canRedo() const { return !m_redoStack.empty(); }
 
 void DocumentBase::undo()
 {
+    ++editSerial;
     if (m_undoStack.empty()) return;
     m_redoStack.push_back(takeSnapshot());
     restoreSnapshot(m_undoStack.back());
@@ -1548,6 +1550,7 @@ void DocumentBase::undo()
 
 void DocumentBase::redo()
 {
+    ++editSerial;
     if (m_redoStack.empty()) return;
     m_undoStack.push_back(takeSnapshot());
     restoreSnapshot(m_redoStack.back());
