@@ -20,6 +20,7 @@
 #include <QSettings>
 #include <QTranslator>
 #include "sweep_dialog.h"
+#include "pattern_dialog.h"
 #include "py_state.h"
 #include <QProcess>
 #include <QTemporaryDir>
@@ -570,6 +571,88 @@ private slots:
         QVERIFY2(L[0] > 1e-4 && L[0] < 1e-2, qPrintable(QString::number(L[0])));
         QVERIFY(std::abs(L[2] - L[0]) < 1e-6 * L[0]);    // linear core
         delete e2;
+    }
+
+    void trimRemovesPieceBetweenCrossings()
+    {
+        ed->setSketchTool(EditorWidget::SketchLine);
+        click(0, 1); click(4, 1); QTest::keyClick(ed, Qt::Key_Escape);   // horizontal
+        click(2, 0); click(2, 2); QTest::keyClick(ed, Qt::Key_Escape);   // vertical crossing it
+        QCOMPARE((int)doc->linelist.size(), 4);    // split at the crossing
+        ed->setSketchTool(EditorWidget::SketchTrim);
+        click(3, 1.02);                             // right half of the horizontal
+        QCOMPARE((int)doc->linelist.size(), 3);
+        QVERIFY(findNode(4, 1) < 0);                // its loose end went too
+        QVERIFY(findNode(2, 1) >= 0);               // the crossing stays
+    }
+
+    void offsetRectangleInward()
+    {
+        ed->setSketchTool(EditorWidget::SketchRect);
+        click(0, 0); click(4, 3);
+        ed->setSketchTool(EditorWidget::SketchOffset);
+        click(2, 0.02);                             // pick the bottom edge -> whole rectangle
+        QTest::mouseMove(ed, scr(2, 1));            // inside
+        type("0.5");
+        QTest::keyClick(ed, Qt::Key_Return);
+        QCOMPARE((int)doc->linelist.size(), 8);
+        QVERIFY(findNode(0.5, 0.5) >= 0);
+        QVERIFY(findNode(3.5, 2.5) >= 0);
+    }
+
+    void offsetCircleOutward()
+    {
+        ed->setSketchTool(EditorWidget::SketchCircle);
+        click(2, 2); click(3, 2);
+        ed->setSketchTool(EditorWidget::SketchOffset);
+        click(2, 3.0);                              // top of the circle
+        QTest::mouseMove(ed, scr(2, 3.6));          // outside
+        type("0.5");
+        QTest::keyClick(ed, Qt::Key_Return);
+        QCOMPARE((int)doc->arclist.size(), 4);
+        QVERIFY(findNode(3.5, 2) >= 0);
+        QVERIFY(findNode(0.5, 2) >= 0);
+    }
+
+    void offsetPreviewScreenshot()
+    {
+        const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
+        if (dir.isEmpty()) QSKIP("FEMM_GUI_TEST_SHOTS not set");
+        ed->setSketchTool(EditorWidget::SketchLine);
+        click(0, 0); click(3, 0); click(4, 2); click(1, 3); click(0, 0);
+        ed->setSketchTool(EditorWidget::SketchOffset);
+        click(1.5, 0.02);
+        QTest::mouseMove(ed, scr(1.5, 0.6));
+        ed->grab().save(dir + "/offset_preview.png");
+        QTest::keyClick(ed, Qt::Key_Escape);
+        ed->setSketchTool(EditorWidget::SketchDimension);
+        QTest::mouseMove(ed, scr(3.5, 1.0));
+        ed->grab().save(dir + "/dimension.png");
+    }
+
+    void circularPatternOfSlot()
+    {
+        // A small square "slot" at (2,0)..(2.5,0.5), copied 6x around the origin
+        ed->setSketchTool(EditorWidget::SketchRect);
+        click(2, 0); click(2.5, 0.5);
+        ed->zoomTo(-4, -4, 4, 4);
+        ed->setSketchTool(EditorWidget::SketchSelect);
+        drag(1.8, -0.2, 2.7, 0.7);                 // window around the slot
+        int sel = 0; for (auto &x : doc->linelist) sel += x.IsSelected;
+        QCOMPARE(sel, 4);
+        PatternDialog dlg(ed);
+        dlg.findChild<QSpinBox *>()->setValue(6);
+        QCOMPARE((int)dlg.transforms().size(), 5);
+        const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
+        if (!dir.isEmpty()) ed->grab().save(dir + "/pattern_preview.png");
+        dlg.apply();
+        QCOMPARE((int)doc->linelist.size(), 24);
+        // The copy at 60 degrees: corner (2,0) -> (1, 1.732)
+        bool found = false;
+        for (auto &n : doc->nodelist) found |= std::hypot(n.x - 1.0, n.y - std::sqrt(3.0)) < 1e-9;
+        QVERIFY(found);
+        doc->undo();
+        QCOMPARE((int)doc->linelist.size(), 4);
     }
 
     void commandPaletteFindsAndRuns()

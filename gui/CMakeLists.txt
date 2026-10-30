@@ -9,6 +9,7 @@ set(FEMM_GUI_SOURCES
     mainwindow.cpp
     editor_widget.cpp
     editor_sketch.cpp
+    editor_tools.cpp
     region_map.cpp
     material_picker.cpp
     problem_check.cpp
@@ -17,6 +18,7 @@ set(FEMM_GUI_SOURCES
     welcome_page.cpp
     command_palette.cpp
     sweep_dialog.cpp
+    pattern_dialog.cpp
     mouse_release_gate.cpp
     results_widget.cpp
     scalar_results_widget.cpp

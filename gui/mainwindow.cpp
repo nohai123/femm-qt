@@ -93,6 +93,7 @@
 #include "view_colors.h"
 #include "command_palette.h"
 #include "sweep_dialog.h"
+#include "pattern_dialog.h"
 #include <QStackedWidget>
 #include <QLockFile>
 #include <QStandardPaths>
@@ -143,6 +144,31 @@ static QIcon sketchIcon(int tool)
         case EditorWidget::SketchArc3:
             p.drawArc(QRectF(2, 3, 12, 14), 20 * 16, 140 * 16);
             dot(2.5, 7.5); dot(8, 3); dot(13.5, 7.5);
+            break;
+        case -1:   // Pattern: a ring of small squares
+            for (int k = 0; k < 6; k++) {
+                const double a = k * M_PI / 3;
+                p.drawRect(QRectF(8 + 5 * std::cos(a) - 1.5, 7.5 + 5 * std::sin(a) - 1.5, 3, 3));
+            }
+            break;
+        case EditorWidget::SketchTrim:
+            p.drawLine(QPointF(2, 7.5), QPointF(14, 7.5));
+            p.drawLine(QPointF(8, 2), QPointF(8, 13));
+            p.setPen(QPen(QColor(220, 40, 40), 1.6));
+            p.drawLine(QPointF(10, 5), QPointF(14, 10));
+            p.drawLine(QPointF(14, 5), QPointF(10, 10));
+            break;
+        case EditorWidget::SketchOffset:
+            p.drawRect(QRectF(2, 2, 12, 11));
+            p.setPen(QPen(QColor(0, 0, 200), 1.2, Qt::DashLine));
+            p.drawRect(QRectF(5, 5, 6, 5));
+            break;
+        case EditorWidget::SketchDimension:
+            p.drawLine(QPointF(2, 11), QPointF(14, 11));
+            p.drawLine(QPointF(2, 8), QPointF(2, 14));
+            p.drawLine(QPointF(14, 8), QPointF(14, 14));
+            p.setPen(QPen(QColor(230, 120, 0), 1.2));
+            p.drawText(QRectF(0, 0, 16, 9), Qt::AlignCenter, QStringLiteral("12"));
             break;
         case EditorWidget::SketchSelect: {
             // Arrow pointer
@@ -448,8 +474,11 @@ EditorWidget *MainWindow::addEditorTab(DocumentBase *doc, const QString &title)
     connect(editor, &EditorWidget::coordinatesChanged, this, &MainWindow::updateCoordinates);
     connect(editor, &EditorWidget::statusMessage, this, &MainWindow::updateStatus);
     connect(editor, &EditorWidget::editActionChanged, this, &MainWindow::onEditActionChanged);
+    connect(editor, &EditorWidget::contextMenuRequested, this, [this, editor](const QPoint &pos) {
+        showEditorContextMenu(editor, pos);
+    });
     connect(editor, &EditorWidget::sketchToolChanged, this, [this](int tool) {
-        if (tool > 0 && tool < 7 && m_actSketch[tool]) m_actSketch[tool]->setChecked(true);
+        if (tool > 0 && tool < 10 && m_actSketch[tool]) m_actSketch[tool]->setChecked(true);
     });
 
     // Apply saved preferences
@@ -1245,7 +1274,7 @@ void MainWindow::syncPreprocessorMenus(EditorWidget *editor)
         case 3: modeAct = m_actArc;     break;
         case 4: modeAct = m_actGroup;   break;
     }
-    if (editor->sketchTool() > 0 && editor->sketchTool() < 7)
+    if (editor->sketchTool() > 0 && editor->sketchTool() < 10)
         modeAct = m_actSketch[editor->sketchTool()];
     if (m_materialPicker) {
         m_materialPicker->setDocument(editor->document());
@@ -1905,6 +1934,7 @@ void MainWindow::createCommonMenus()
     edit->addAction(tr("&Move"), QKeySequence(), this, &MainWindow::onMove);
     edit->addAction(tr("Sc&ale"), QKeySequence(), this, &MainWindow::onScale);
     edit->addAction(tr("Mi&rror"), QKeySequence(), this, &MainWindow::onMirror);
+    edit->addAction(tr("&Pattern..."), QKeySequence(), this, &MainWindow::onPattern);
     edit->addAction(tr("Create &Radius..."), QKeySequence(), this, &MainWindow::onCreateRadius);
     edit->addSeparator();
     // Deliberately no keyboard shortcut: Ctrl+C here would shadow the ordinary
@@ -2285,6 +2315,26 @@ void MainWindow::createPreprocessorUI()
             e->setSketchTool(EditorWidget::SketchFill);
         });
         m_actSketch[EditorWidget::SketchFill] = fill;
+        // Edit tools: trim, offset, dimension
+        m_preTopBar2->addSeparator();
+        struct { int tool; const char *name; const char *tip; } edits[] = {
+            {EditorWidget::SketchTrim, QT_TR_NOOP("Trim"), QT_TR_NOOP("Trim (T) -- click a piece of a line or arc to remove it")},
+            {EditorWidget::SketchOffset, QT_TR_NOOP("Offset"), QT_TR_NOOP("Offset (O) -- parallel copy of a contour at a distance")},
+            {EditorWidget::SketchDimension, QT_TR_NOOP("Dimension"), QT_TR_NOOP("Dimension (D) -- show lengths and radii; click to set an exact value")},
+        };
+        for (auto &t : edits) {
+            QAction *a = m_preTopBar2->addAction(sketchIcon(t.tool), tr(t.name));
+            a->setCheckable(true);
+            a->setToolTip(tr(t.tip));
+            m_modeGroup->addAction(a);
+            const int tool = t.tool;
+            connect(a, &QAction::triggered, this, [this, tool]() {
+                auto *e = activeEditor(); if (e) e->setSketchTool(tool);
+            });
+            m_actSketch[tool] = a;
+        }
+        m_actPattern = m_preTopBar2->addAction(sketchIcon(-1), tr("Pattern"), this, &MainWindow::onPattern);
+        m_actPattern->setToolTip(tr("Pattern -- circular or linear copies of the selection, with preview"));
         m_materialPicker = new MaterialPicker;
         m_preTopBar2->addWidget(m_materialPicker);
         connect(m_materialPicker, &MaterialPicker::aboutToShowPopup, this, [this]() {
@@ -2343,6 +2393,9 @@ void MainWindow::createPreprocessorUI()
     addModeMenuItem(tr("&Circle"), m_actSketch[EditorWidget::SketchCircle]);
     addModeMenuItem(tr("3-&Point Arc"), m_actSketch[EditorWidget::SketchArc3]);
     addModeMenuItem(tr("Assign &Material"), m_actSketch[EditorWidget::SketchFill]);
+    addModeMenuItem(tr("&Trim"), m_actSketch[EditorWidget::SketchTrim]);
+    addModeMenuItem(tr("O&ffset"), m_actSketch[EditorWidget::SketchOffset]);
+    addModeMenuItem(tr("&Dimension"), m_actSketch[EditorWidget::SketchDimension]);
     m_preMenuOperation->addSeparator();
     addModeMenuItem(tr("&Node"), m_actNode);
     addModeMenuItem(tr("&Segment"), m_actSegment);
@@ -2950,6 +3003,55 @@ void MainWindow::onCopy()
         e->document()->RotateCopy(CComplex(dlg.aboutX(), dlg.aboutY()),
                                   dlg.angle(), dlg.copies(), e->editAction());
     e->update();
+}
+
+void MainWindow::onPattern()
+{
+    auto *e = activeEditor(); if (!e || !e->document()) return;
+    DocumentBase *d = e->document();
+    bool any = false;
+    for (const auto &n : d->nodelist) any |= n.IsSelected;
+    for (const auto &s2 : d->linelist) any |= s2.IsSelected;
+    for (const auto &a : d->arclist) any |= a.IsSelected;
+    for (const auto &b : d->blocklist) any |= b.IsSelected;
+    if (!any) {
+        QMessageBox::information(this, tr("Pattern"),
+            tr("Select what should be repeated first (Select tool: click or drag a window)."));
+        return;
+    }
+    PatternDialog dlg(e, this);
+    // Keep the drawing visible beside the dialog
+    dlg.move(geometry().right() - dlg.sizeHint().width() - 40, geometry().top() + 120);
+    if (dlg.exec() == QDialog::Accepted) dlg.apply();
+}
+
+void MainWindow::showEditorContextMenu(EditorWidget *e, const QPoint &pos)
+{
+    QMenu m(this);
+    m.addAction(tr("Properties..."), [e]() {
+        // The dialog for what is selected: labels, else lines/arcs, else nodes
+        const DocumentBase *d = e->document();
+        bool lab = false, edge = false;
+        for (const auto &b : d->blocklist) lab |= b.IsSelected;
+        for (const auto &s2 : d->linelist) edge |= s2.IsSelected;
+        for (const auto &a : d->arclist) edge |= a.IsSelected;
+        e->openSelectedAs(lab ? 2 : edge ? 1 : 0);
+    });
+    m.addAction(tr("Delete"), [e]() { e->deleteSelected(); });
+    m.addSeparator();
+    m.addAction(tr("Move..."), this, &MainWindow::onMove);
+    m.addAction(tr("Copy..."), this, &MainWindow::onCopy);
+    m.addAction(tr("Pattern..."), this, &MainWindow::onPattern);
+    m.addAction(tr("Mirror..."), this, &MainWindow::onMirror);
+    m.addAction(tr("Scale..."), this, &MainWindow::onScale);
+    m.addAction(tr("Create Radius..."), this, &MainWindow::onCreateRadius);
+    m.addSeparator();
+    m.addAction(tr("Offset"), [e]() { e->setSketchTool(EditorWidget::SketchOffset); });
+    m.addAction(tr("Trim"), [e]() { e->setSketchTool(EditorWidget::SketchTrim); });
+    m.addAction(tr("Dimension"), [e]() { e->setSketchTool(EditorWidget::SketchDimension); });
+    m.addSeparator();
+    m.addAction(tr("Zoom to Fit"), [e]() { e->zoomFit(); });
+    m.exec(pos);
 }
 
 void MainWindow::onScale()

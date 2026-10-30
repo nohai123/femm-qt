@@ -16,6 +16,8 @@
 #include <QPointF>
 #include <vector>
 #include <functional>
+#include <deque>
+#include <QTransform>
 #include "region_map.h"
 
 class DocumentBase;
@@ -85,7 +87,10 @@ public:
     // keep working on what the tool drew. setEditAction() leaves the tool.
     enum SketchTool { SketchNone = 0, SketchLine, SketchRect, SketchCircle, SketchArc3,
                       SketchFill,     // Fill: click a region to assign a material
-                      SketchSelect }; // Select: click/drag to select, drag to move
+                      SketchSelect,   // Select: click/drag to select, drag to move
+                      SketchTrim,     // Trim: click a piece to delete it
+                      SketchOffset,   // Offset: parallel copy of a contour
+                      SketchDimension };  // Dimension: show / set lengths and radii
     void setSketchTool(int tool);
     int sketchTool() const { return m_sketchTool; }
 
@@ -103,6 +108,9 @@ public:
     void setFillMaterial(const QString &name) { m_fillMaterial = name; }
     QString fillMaterial() const { return m_fillMaterial; }
     void setEnsureMaterial(std::function<bool(const QString &)> fn) { m_ensureMaterial = std::move(fn); }
+    // Preview of copies of the selection (Pattern dialog); empty = none
+    void setGhosts(const std::vector<QTransform> &g) { m_ghosts = g; update(); }
+
     // Region bookkeeping, for the problem check before meshing
     RegionMap &regions();
 
@@ -121,6 +129,8 @@ signals:
     void statusMessage(const QString &msg);
     void editActionChanged(int action);
     void sketchToolChanged(int tool);
+    // Right-click in the Select tool: the window shows a context menu
+    void contextMenuRequested(const QPoint &globalPos);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -176,6 +186,27 @@ private:
     double pickTolerance() const { return 10.0 / m_mag; }
 
     void fillPress(double x, double y);
+    // Trim / Offset / Dimension tools (editor_tools.cpp)
+    struct ChainEdge { bool arc; int index; bool reversed; };
+    struct OffsetPiece {
+        bool arc = false;
+        QPointF p0, p1;              // in travel order
+        QPointF centre, ccw0, ccw1;  // arcs: centre and CCW end points
+        double radius = 0, sweep = 0, maxSeg = 10;
+    };
+    int pickEdge(double x, double y, bool &isArc) const;
+    void trimAt(double x, double y);
+    std::vector<ChainEdge> chainFrom(int edge, bool isArc, bool &closed) const;
+    std::vector<OffsetPiece> offsetChain(const std::vector<ChainEdge> &chain, bool closed, double d) const;
+    bool offsetDistance(double &d) const;
+    void offsetPress(double x, double y);
+    void dimensionAt(double x, double y);
+    void drawDimensions(QPainter &p);
+    void drawToolOverlay(QPainter &p);
+    bool toolKey(QKeyEvent *event);
+    std::vector<ChainEdge> m_offsetChain;
+    bool m_offsetClosed = false;
+    std::vector<QTransform> m_ghosts;
     // Select tool (editor_sketch.cpp)
     bool selectPress(QMouseEvent *event);
     bool selectMove(QMouseEvent *event);

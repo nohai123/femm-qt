@@ -278,6 +278,7 @@ void EditorWidget::paintEvent(QPaintEvent *)
     drawBlockLabels(p);
 
     drawSketchOverlay(p);
+    drawToolOverlay(p);
 
     // Rubber band for zoom/select window
     if (m_zoomWndFlag == 2 || m_selectWndFlag == 2) {
@@ -953,6 +954,7 @@ void EditorWidget::wheelEvent(QWheelEvent *event)
 
 void EditorWidget::keyPressEvent(QKeyEvent *event)
 {
+    if (toolKey(event)) return;
     if (sketchKey(event)) return;
 
     // One-letter tool shortcuts (only when no modifier is held, so Cmd+C etc.
@@ -965,6 +967,9 @@ void EditorWidget::keyPressEvent(QKeyEvent *event)
         case Qt::Key_A: setSketchTool(SketchArc3); return;
         case Qt::Key_F: setSketchTool(SketchFill); return;
         case Qt::Key_V: setSketchTool(SketchSelect); return;
+        case Qt::Key_T: setSketchTool(SketchTrim); return;
+        case Qt::Key_O: setSketchTool(SketchOffset); return;
+        case Qt::Key_D: setSketchTool(SketchDimension); return;
         case Qt::Key_N: setEditAction(0); return;
         case Qt::Key_S: setEditAction(1); return;
         case Qt::Key_B: setEditAction(2); return;

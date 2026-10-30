@@ -120,6 +120,7 @@ void EditorWidget::setSketchTool(int tool)
     m_firstPoint = -1;
     // Selection, Move, Copy etc. act on segments while a drawing tool is up,
     // and on everything selected (group semantics) with the Select tool.
+    m_offsetChain.clear();
     if (tool == SketchSelect) m_editAction = 4;
     else if (tool != SketchNone) m_editAction = 1;
     emit sketchToolChanged(tool);
@@ -144,6 +145,15 @@ void EditorWidget::emitSketchHint()
     case SketchCircle:
         h = started ? tr("Circle: click a point on the circle, or type the radius + Enter.")
                     : tr("Circle: click the centre (Tab: enter coordinates).");
+        break;
+    case SketchTrim:
+        h = tr("Trim: click a piece of a line or arc (between crossings) to remove it.");
+        break;
+    case SketchOffset:
+        h = tr("Offset: click a contour, then move to the side and click -- or type the distance + Enter.");
+        break;
+    case SketchDimension:
+        h = tr("Dimension: click a line to set its length, an arc or circle to set its radius.");
         break;
     case SketchSelect:
         h = tr("Select: click an object (Shift adds), drag a window (left-to-right: inside, "
@@ -299,6 +309,15 @@ void EditorWidget::sketchPress(double x, double y, int snapKind)
     switch (m_sketchTool) {
     case SketchFill:
         fillPress(x, y);
+        return;
+    case SketchTrim:
+        trimAt(m_mx, m_my);
+        return;
+    case SketchOffset:
+        offsetPress(m_mx, m_my);
+        return;
+    case SketchDimension:
+        dimensionAt(m_mx, m_my);
         return;
     case SketchLine: {
         if (m_sketchPts.empty()) {
@@ -477,6 +496,8 @@ bool EditorWidget::askPoint(const QString &title, double &x, double &y)
 bool EditorWidget::sketchKey(QKeyEvent *event)
 {
     if (m_sketchTool == SketchNone || !m_doc) return false;
+    // Only the drawing tools take typed values and coordinates
+    if (m_sketchTool >= SketchFill) return false;
     const int key = event->key();
     const bool started = !m_sketchPts.empty();
     const bool typing = !m_input[0].isEmpty() || !m_input[1].isEmpty();
@@ -593,6 +614,7 @@ void EditorWidget::drawSnapMarker(QPainter &p, const Snap &s)
 void EditorWidget::drawSketchOverlay(QPainter &p)
 {
     if (!m_doc || !m_hasCursor) return;
+    if (m_sketchTool >= SketchTrim) return;   // editor_tools.cpp draws these
     if (m_sketchTool == SketchSelect) {
         if (m_selBand) {
             const QPoint cur = mapFromGlobal(QCursor::pos());
@@ -860,7 +882,32 @@ void EditorWidget::drawRegions(QPainter &p)
 
 bool EditorWidget::selectPress(QMouseEvent *event)
 {
-    if (!m_doc || event->button() != Qt::LeftButton) return false;
+    if (!m_doc) return false;
+    if (event->button() == Qt::RightButton) {
+        // As in a CAD program: right-click on an unselected object selects
+        // it alone; then the context menu acts on the selection.
+        bool isArc;
+        const double x = m_mx, y = m_my;
+        int j = m_doc->ClosestNode(x, y);
+        bool hit = false;
+        auto alone = [&]() { m_doc->UnselectAll(); };
+        if (j >= 0 && m_doc->nodelist[j].GetDistance(x, y) < pickTolerance()) {
+            if (!m_doc->nodelist[j].IsSelected) { alone(); m_doc->nodelist[j].IsSelected = true; }
+            hit = true;
+        } else if (int b = m_doc->ClosestBlockLabel(x, y); b >= 0 && m_doc->blocklist[b].GetDistance(x, y) < pickTolerance()) {
+            if (!m_doc->blocklist[b].IsSelected) { alone(); m_doc->blocklist[b].IsSelected = true; }
+            hit = true;
+        } else if (int k = pickEdge(x, y, isArc); k >= 0) {
+            bool &sel = isArc ? m_doc->arclist[k].IsSelected : m_doc->linelist[k].IsSelected;
+            if (!sel) { alone(); (isArc ? m_doc->arclist[k].IsSelected : m_doc->linelist[k].IsSelected) = true; }
+            hit = true;
+        }
+        (void)hit;
+        update();
+        emit contextMenuRequested(event->globalPosition().toPoint());
+        return true;
+    }
+    if (event->button() != Qt::LeftButton) return false;
     const double x = m_mx, y = m_my, tol = pickTolerance();
     const bool add = event->modifiers() & Qt::ShiftModifier;
 
