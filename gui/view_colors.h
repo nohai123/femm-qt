@@ -97,4 +97,8 @@ public:
 // Global instance
 ViewColors &viewColors();
 
+// True when the drawing area should use dark colours: the ui/theme setting,
+// or the system appearance when it is "follow the system".
+bool femmDarkTheme();
+
 #endif // VIEW_COLORS_H

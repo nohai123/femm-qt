@@ -209,6 +209,8 @@ private:
     class QStackedWidget *m_centralStack = nullptr;
     // Creates a new document from the New Problem dialog's settings.
     void createNewProblem(int physics, bool askSettings);
+    // Reload drawing colours after a light/dark switch and repaint.
+    void applyTheme();
     QAction *m_actMaterialLibrary = nullptr;
     QAction *m_fillRegionsMenu = nullptr;
     // Copies a library material into the active document if it lacks it.

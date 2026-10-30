@@ -16,6 +16,8 @@
 #include "results_summary.h"
 #include "welcome_page.h"
 #include "command_palette.h"
+#include "view_colors.h"
+#include <QSettings>
 #include <QMenuBar>
 #include <QLineEdit>
 #include <QListWidget>
@@ -511,6 +513,13 @@ private slots:
         ed->setFillMaterial("Copper");
         QTest::mouseMove(ed, scr(0.7, 0.6));
         ed->grab().save(dir + "/regions_fill.png");
+        // Same drawing, dark theme, with a boundary condition on the square
+        for (auto &sg : doc->linelist) sg.BoundaryMarker = "A=0";
+        QSettings().setValue("ui/theme", 2);
+        viewColors().load();
+        ed->grab().save(dir + "/regions_dark.png");
+        QSettings().remove("ui/theme");
+        viewColors().load();
     }
 
     void modifiedTracking()

@@ -6,6 +6,19 @@
 
 #include "view_colors.h"
 
+#include <QGuiApplication>
+#include <QSettings>
+#include <QStyleHints>
+
+bool femmDarkTheme()
+{
+    // ui/theme: 0 = follow the system, 1 = light, 2 = dark
+    const int t = QSettings().value("ui/theme", 0).toInt();
+    if (t == 1) return false;
+    if (t == 2) return true;
+    return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+}
+
 // Global singleton
 static ViewColors s_viewColors;
 
@@ -94,6 +107,21 @@ void ViewColors::save() const
 void ViewColors::load()
 {
     resetDefaults();  // start with defaults
+    if (femmDarkTheme()) {
+        // Dark drawing area. Only the defaults change: a colour the user set
+        // in Preferences (stored below) still wins.
+        c[CI_Background]   = QColor(32, 33, 36);
+        c[CI_Line]         = QColor(110, 170, 255);
+        c[CI_Node]         = QColor(225, 225, 225);
+        c[CI_Grid]         = QColor(95, 98, 104);
+        c[CI_Block]        = QColor(110, 210, 130);
+        c[CI_Text]         = QColor(230, 230, 230);
+        c[CI_RealFluxLine] = QColor(235, 235, 235);
+        c[CI_ImagFluxLine] = QColor(120, 220, 140);
+        c[CI_RealVector]   = QColor(235, 235, 235);
+        c[CI_ImagVector]   = QColor(160, 160, 160);
+        c[CI_Selected]     = QColor(255, 80, 80);
+    }
     QSettings settings;
     for (int i = 0; i < CI_COUNT; i++) {
         QString key = QString("colors/%1").arg(i);

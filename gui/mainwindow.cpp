@@ -90,8 +90,10 @@
 #include "model_panel.h"
 #include "results_summary.h"
 #include "welcome_page.h"
+#include "view_colors.h"
 #include "command_palette.h"
 #include <QStackedWidget>
+#include <QStyleHints>
 
 static bool femmOpenable(const QString &path);
 
@@ -2692,6 +2694,25 @@ void MainWindow::createLeftToolbars()
 
     // Add Window and Help menus
     m_windowMenu = menuBar()->addMenu(tr("&Window"));
+    {
+        // Appearance: follow the system, or force light / dark drawing colours
+        QMenu *ap = m_windowMenu->addMenu(tr("&Appearance"));
+        auto *grp = new QActionGroup(this);
+        const char *names[] = {QT_TR_NOOP("Follow System"), QT_TR_NOOP("Light"), QT_TR_NOOP("Dark")};
+        const int cur = QSettings().value("ui/theme", 0).toInt();
+        for (int i = 0; i < 3; i++) {
+            QAction *a = ap->addAction(tr(names[i]));
+            a->setCheckable(true);
+            a->setChecked(i == cur);
+            grp->addAction(a);
+            connect(a, &QAction::triggered, this, [this, i]() {
+                QSettings().setValue("ui/theme", i);
+                applyTheme();
+            });
+        }
+        m_windowMenu->addSeparator();
+        connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this, [this]() { applyTheme(); });
+    }
     QMenu *window = m_windowMenu;
     window->addAction(tr("&Cascade"), QKeySequence(), [this]() { m_mdiArea->cascadeSubWindows(); });
     window->addAction(tr("&Tile"), QKeySequence(), [this]() { m_mdiArea->tileSubWindows(); });
@@ -3057,6 +3078,13 @@ bool MainWindow::confirmDiscard(QMdiSubWindow *sub)
     default:
         return false;
     }
+}
+
+void MainWindow::applyTheme()
+{
+    viewColors().load();
+    for (auto *sub : m_mdiArea->subWindowList())
+        if (sub->widget()) sub->widget()->update();
 }
 
 void MainWindow::refreshModifiedMarks()
