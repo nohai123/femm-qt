@@ -32,6 +32,8 @@
 
 #include <QPainter>
 #include <QPainterPath>
+#include <QMap>
+#include "view_colors.h"
 #include <QKeyEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -138,6 +140,11 @@ void EditorWidget::emitSketchHint()
     case SketchCircle:
         h = started ? tr("Circle: click a point on the circle, or type the radius + Enter.")
                     : tr("Circle: click the centre (Tab: enter coordinates).");
+        break;
+    case SketchFill:
+        h = m_fillMaterial.isEmpty()
+              ? tr("Assign material: choose a material in the toolbar, then click inside regions.")
+              : tr("Assign material: click inside a region to fill it with \"%1\".").arg(m_fillMaterial);
         break;
     case SketchArc3:
         h = m_sketchPts.empty() ? tr("Arc: click the start point.")
@@ -281,6 +288,9 @@ void EditorWidget::sketchPress(double x, double y, int snapKind)
     const QPointF p(x, y);
 
     switch (m_sketchTool) {
+    case SketchFill:
+        fillPress(x, y);
+        return;
     case SketchLine: {
         if (m_sketchPts.empty()) {
             m_doc->pushUndo();
@@ -574,6 +584,22 @@ void EditorWidget::drawSnapMarker(QPainter &p, const Snap &s)
 void EditorWidget::drawSketchOverlay(QPainter &p)
 {
     if (!m_doc || !m_hasCursor) return;
+    if (m_sketchTool == SketchFill) {
+        // Outline the region a click would fill
+        const int f = m_regions.faceAt(m_mx, m_my);
+        if (f >= 0) {
+            QPolygonF sp;
+            for (const QPointF &pt : m_regions.faces()[f].poly) sp << toScreen(pt.x(), pt.y());
+            p.save();
+            QColor c = materialColor(m_fillMaterial);
+            c.setAlpha(std::max(c.alpha(), 90));
+            p.setBrush(c);
+            p.setPen(QPen(kSnapColor, 2));
+            p.drawPolygon(sp);
+            p.restore();
+        }
+        return;
+    }
     const bool creating = m_sketchTool != SketchNone || m_editAction == 0;
     if (!creating) return;
 
@@ -670,6 +696,117 @@ void EditorWidget::drawSketchOverlay(QPainter &p)
             p.setPen(Qt::black);
             p.drawText(r, Qt::AlignCenter, fields[i]);
             x += r.width() + 4;
+        }
+    }
+    p.restore();
+}
+
+// ================================================================
+// Regions: material fill and the Fill (assign material) tool
+// ================================================================
+
+RegionMap &EditorWidget::regions()
+{
+    if (m_doc) m_regions.update(*m_doc);
+    return m_regions;
+}
+
+void EditorWidget::fillPress(double x, double y)
+{
+    if (m_fillMaterial.isEmpty()) {
+        emit statusMessage(tr("Choose a material in the toolbar first."));
+        return;
+    }
+    m_regions.update(*m_doc);
+    const int f = m_regions.faceAt(x, y);
+    if (f < 0) {
+        emit statusMessage(tr("Click inside a closed region."));
+        return;
+    }
+    if (m_ensureMaterial && !m_ensureMaterial(m_fillMaterial)) {
+        emit statusMessage(tr("Material \"%1\" is not available.").arg(m_fillMaterial));
+        return;
+    }
+    const std::string mat = m_fillMaterial.toStdString();
+    m_doc->pushUndo();
+    const auto labels = m_regions.faces()[f].labels;   // copy: AddBlockLabel invalidates
+    if (labels.empty()) {
+        if (!m_doc->AddBlockLabel(x, y, 1.0 / m_mag)) {
+            emit statusMessage(tr("Too close to a node or label -- click a little further inside."));
+            return;
+        }
+        m_doc->blocklist.back().BlockType = mat;
+    } else {
+        for (int i : labels) m_doc->blocklist[i].BlockType = mat;
+    }
+    emit statusMessage(tr("Region filled with \"%1\".").arg(m_fillMaterial));
+    update();
+}
+
+void EditorWidget::drawRegions(QPainter &p)
+{
+    if (!m_doc) return;
+    m_regions.update(*m_doc);
+    const auto &faces = m_regions.faces();
+    if (faces.empty()) return;
+
+    p.save();
+    p.setPen(Qt::NoPen);
+    QMap<QString, QColor> legend;
+    for (const auto &f : faces) {
+        QPolygonF sp;
+        sp.reserve(f.poly.size());
+        for (const QPointF &pt : f.poly) sp << toScreen(pt.x(), pt.y());
+
+        if (f.labels.size() == 1) {
+            const auto &b = m_doc->blocklist[f.labels[0]];
+            const QString name = QString::fromStdString(b.BlockType);
+            if (name == "<No Mesh>") {
+                p.setBrush(viewColors().background());
+                p.drawPolygon(sp);
+                p.setBrush(QBrush(QColor(150, 150, 150), Qt::Dense7Pattern));
+            } else {
+                QColor c = materialColor(name);
+                if (c.alpha() == 0) {
+                    // Label without a material: same warning as no label
+                    p.setBrush(viewColors().background());
+                    p.drawPolygon(sp);
+                    p.setBrush(QBrush(QColor(220, 40, 40, 140), Qt::BDiagPattern));
+                } else {
+                    // Opaque base first so a region nested in another is not
+                    // tinted by the outer region's colour.
+                    p.setBrush(viewColors().background());
+                    p.drawPolygon(sp);
+                    p.setBrush(c);
+                    legend.insert(name, c);
+                }
+            }
+        } else {
+            // No label (or several -- FEMM would refuse or guess): hatch red
+            p.setBrush(viewColors().background());
+            p.drawPolygon(sp);
+            p.setBrush(QBrush(QColor(220, 40, 40, 140),
+                              f.labels.empty() ? Qt::BDiagPattern : Qt::DiagCrossPattern));
+        }
+        p.drawPolygon(sp);
+    }
+
+    // Legend, top-left
+    if (!legend.isEmpty()) {
+        QFont font = p.font();
+        font.setPointSize(9);
+        p.setFont(font);
+        const QFontMetrics fm(font);
+        int y = 8;
+        for (auto it = legend.cbegin(); it != legend.cend(); ++it) {
+            QColor c = it.value();
+            c.setAlpha(std::max(c.alpha(), 160));
+            p.setPen(QPen(QColor(90, 90, 90), 1));
+            p.setBrush(c);
+            p.drawRect(QRectF(8, y, 12, 12));
+            p.setPen(viewColors().text());
+            p.drawText(QPointF(26, y + 10), it.key());
+            y += fm.height() + 4;
         }
     }
     p.restore();

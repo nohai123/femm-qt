@@ -201,7 +201,11 @@ private:
     QAction *m_actBlock = nullptr;
     QAction *m_actGroup = nullptr;
     // CAD-style sketch tools (EditorWidget::SketchTool 1..4), same exclusive group
-    QAction *m_actSketch[5] = {};
+    QAction *m_actSketch[6] = {};
+    class MaterialPicker *m_materialPicker = nullptr;
+    QAction *m_fillRegionsMenu = nullptr;
+    // Copies a library material into the active document if it lacks it.
+    bool ensureMaterial(EditorWidget *editor, const QString &name);
     QAction *m_objectSnapMenu = nullptr;
 
     // Postprocessor UI

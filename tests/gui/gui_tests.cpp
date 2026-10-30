@@ -215,6 +215,60 @@ private slots:
         QVERIFY2((e1 - e0) < (c1 - c0), "mouse wheel zooms in");
     }
 
+    // Square 0..4 with a circle (r=1 at 2,2) inside and a dangling line.
+    void buildSquareWithCircle()
+    {
+        ed->setSketchTool(EditorWidget::SketchRect);
+        click(0, 0); click(4, 4);
+        ed->setSketchTool(EditorWidget::SketchCircle);
+        click(2, 2); click(3, 2);
+        ed->setSketchTool(EditorWidget::SketchLine);
+        click(4, 4); click(4.8, 4.8);
+        QTest::keyClick(ed, Qt::Key_Escape);
+    }
+
+    void regionsFound()
+    {
+        buildSquareWithCircle();
+        auto &faces = ed->regions().faces();
+        QCOMPARE((int)faces.size(), 2);
+        QVERIFY(std::abs(faces[0].area - 16.0) < 1e-9);          // square (outer polygon)
+        QVERIFY(std::abs(faces[1].area - M_PI) < 0.02);          // circle (sampled)
+        QCOMPARE(ed->regions().faceAt(0.5, 0.5), 0);
+        QCOMPARE(ed->regions().faceAt(2.1, 2.1), 1);
+        QCOMPARE(ed->regions().faceAt(4.5, 2), -1);
+    }
+
+    void fillToolAddsAndReassignsLabels()
+    {
+        buildSquareWithCircle();
+        QStringList asked;
+        ed->setEnsureMaterial([&](const QString &n) {
+            asked << n;
+            FMaterialProp m; m.BlockName = n.toStdString();
+            doc->blockproplist.push_back(m);
+            return true;
+        });
+        ed->setFillMaterial("Air");
+        ed->setSketchTool(EditorWidget::SketchFill);
+        click(0.5, 0.5);                       // annulus between square and circle
+        QCOMPARE((int)doc->blocklist.size(), 1);
+        QCOMPARE(QString::fromStdString(doc->blocklist[0].BlockType), QString("Air"));
+        ed->setFillMaterial("Pure Iron");
+        click(2.2, 2.1);                       // inside the circle: a second label
+        QCOMPARE((int)doc->blocklist.size(), 2);
+        click(2.0, 1.6);                       // same region again: reassigned, not added
+        QCOMPARE((int)doc->blocklist.size(), 2);
+        click(4.5, 1);                         // outside every region: nothing
+        QCOMPARE((int)doc->blocklist.size(), 2);
+        QCOMPARE(asked, QStringList({"Air", "Pure Iron", "Pure Iron"}));
+        const auto &faces = ed->regions().faces();
+        QCOMPARE((int)faces[0].labels.size(), 1);
+        QCOMPARE((int)faces[1].labels.size(), 1);
+        doc->undo();                            // the reassignment is undoable
+        QCOMPARE((int)doc->blocklist.size(), 2);
+    }
+
     // Not a check: with FEMM_GUI_TEST_SHOTS=<dir> set, saves pictures of the
     // previews for a human (or Claude) to look at.
     void screenshots()
@@ -239,6 +293,24 @@ private slots:
         click(2, 2.5);
         QTest::mouseMove(ed, scr(3.2, 3));
         ed->grab().save(dir + "/circle_preview.png");
+        QTest::keyClick(ed, Qt::Key_Escape);
+
+        cleanup(); init();
+        buildSquareWithCircle();
+        ed->setSketchTool(EditorWidget::SketchRect);
+        click(0.3, 0.3); click(1.2, 1.0);
+        ed->setEnsureMaterial([&](const QString &n) {
+            FMaterialProp m; m.BlockName = n.toStdString();
+            doc->blockproplist.push_back(m); return true;
+        });
+        ed->setFillMaterial("Air");
+        ed->setSketchTool(EditorWidget::SketchFill);
+        click(3.5, 3.5);
+        ed->setFillMaterial("M-19 Steel");
+        click(2.2, 2.2);
+        ed->setFillMaterial("Copper");
+        QTest::mouseMove(ed, scr(0.7, 0.6));
+        ed->grab().save(dir + "/regions_fill.png");
     }
 
     void modifiedTracking()

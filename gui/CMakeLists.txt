@@ -9,6 +9,8 @@ set(FEMM_GUI_SOURCES
     mainwindow.cpp
     editor_widget.cpp
     editor_sketch.cpp
+    region_map.cpp
+    material_picker.cpp
     mouse_release_gate.cpp
     results_widget.cpp
     scalar_results_widget.cpp

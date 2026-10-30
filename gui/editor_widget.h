@@ -15,6 +15,8 @@
 #include <QColor>
 #include <QPointF>
 #include <vector>
+#include <functional>
+#include "region_map.h"
 
 class DocumentBase;
 
@@ -81,7 +83,8 @@ public:
     // of following the classic node-then-connect workflow. The classic edit
     // action stays set (to Segment) so right-click selection, Move, Copy etc.
     // keep working on what the tool drew. setEditAction() leaves the tool.
-    enum SketchTool { SketchNone = 0, SketchLine, SketchRect, SketchCircle, SketchArc3 };
+    enum SketchTool { SketchNone = 0, SketchLine, SketchRect, SketchCircle, SketchArc3,
+                      SketchFill };   // Fill: click a region to assign a material
     void setSketchTool(int tool);
     int sketchTool() const { return m_sketchTool; }
 
@@ -89,6 +92,18 @@ public:
     // horizontal/vertical alignment with existing nodes.
     void setObjectSnap(bool on) { m_objectSnap = on; update(); }
     bool objectSnap() const { return m_objectSnap; }
+
+    // Regions filled with their material colour; unlabelled regions hatched.
+    void setFillRegions(bool on) { m_fillRegions = on; update(); }
+    bool fillRegions() const { return m_fillRegions; }
+    // Material the Fill tool assigns. ensureMaterial is called before it is
+    // used and must make sure the document has it (e.g. from the library);
+    // it returns false if that was not possible.
+    void setFillMaterial(const QString &name) { m_fillMaterial = name; }
+    QString fillMaterial() const { return m_fillMaterial; }
+    void setEnsureMaterial(std::function<bool(const QString &)> fn) { m_ensureMaterial = std::move(fn); }
+    // Region bookkeeping, for the problem check before meshing
+    RegionMap &regions();
 
     // Modified tracking: the document's edit serial at the last save/open.
     void markSaved();
@@ -155,6 +170,13 @@ private:
     int pickNode(double x, double y) const;           // -1 if none near
     bool askPoint(const QString &title, double &x, double &y);
     double pickTolerance() const { return 10.0 / m_mag; }
+
+    void fillPress(double x, double y);
+    void drawRegions(QPainter &p);
+    RegionMap m_regions;
+    bool m_fillRegions = true;
+    QString m_fillMaterial;
+    std::function<bool(const QString &)> m_ensureMaterial;
 
     int m_sketchTool = SketchNone;
     bool m_objectSnap = true;

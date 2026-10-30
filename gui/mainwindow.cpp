@@ -85,6 +85,7 @@
 
 #include "py_line_edit.h"
 #include "dxf_io.h"
+#include "material_picker.h"
 
 static bool femmOpenable(const QString &path);
 
@@ -129,6 +130,17 @@ static QIcon sketchIcon(int tool)
             p.drawArc(QRectF(2, 3, 12, 14), 20 * 16, 140 * 16);
             dot(2.5, 7.5); dot(8, 3); dot(13.5, 7.5);
             break;
+        case EditorWidget::SketchFill: {
+            // Paint bucket
+            QPolygonF bucket;
+            bucket << QPointF(3, 6) << QPointF(8, 1.5) << QPointF(13, 6.5) << QPointF(8, 11.5);
+            p.setBrush(QColor(225, 130, 60));
+            p.drawPolygon(bucket);
+            p.setBrush(QColor(0, 0, 200));
+            p.setPen(Qt::NoPen);
+            p.drawEllipse(QPointF(13.5, 11.5), 1.6, 2.2);
+            break;
+        }
         }
         ic.addPixmap(pm);
     }
@@ -363,7 +375,7 @@ EditorWidget *MainWindow::addEditorTab(DocumentBase *doc, const QString &title)
     connect(editor, &EditorWidget::statusMessage, this, &MainWindow::updateStatus);
     connect(editor, &EditorWidget::editActionChanged, this, &MainWindow::onEditActionChanged);
     connect(editor, &EditorWidget::sketchToolChanged, this, [this](int tool) {
-        if (tool > 0 && tool < 5 && m_actSketch[tool]) m_actSketch[tool]->setChecked(true);
+        if (tool > 0 && tool < 6 && m_actSketch[tool]) m_actSketch[tool]->setChecked(true);
     });
 
     // Apply saved preferences
@@ -372,6 +384,8 @@ EditorWidget *MainWindow::addEditorTab(DocumentBase *doc, const QString &title)
     editor->setSnapToGrid(settings.value("editor/snapToGrid", false).toBool());
     editor->setShowNames(settings.value("editor/showNames", true).toBool());
     editor->setObjectSnap(settings.value("editor/objectSnap", true).toBool());
+    editor->setFillRegions(settings.value("editor/fillRegions", true).toBool());
+    editor->setEnsureMaterial([this, editor](const QString &name) { return ensureMaterial(editor, name); });
 
     // Apply default problem settings for new documents
     if (doc->filePath.empty()) {
@@ -1145,8 +1159,12 @@ void MainWindow::syncPreprocessorMenus(EditorWidget *editor)
         case 3: modeAct = m_actArc;     break;
         case 4: modeAct = m_actGroup;   break;
     }
-    if (editor->sketchTool() > 0 && editor->sketchTool() < 5)
+    if (editor->sketchTool() > 0 && editor->sketchTool() < 6)
         modeAct = m_actSketch[editor->sketchTool()];
+    if (m_materialPicker) {
+        m_materialPicker->setDocument(editor->document());
+        m_materialPicker->setEditText(editor->fillMaterial());
+    }
     if (modeAct) modeAct->setChecked(true);
     if (m_objectSnapMenu) {
         m_objectSnapMenu->blockSignals(true);
@@ -1175,6 +1193,43 @@ void MainWindow::onNew()
     snprintf(cmd, sizeof(cmd), "newdocument(%d)", doctype);
     char errmsg[256] = {};
     exec_python(cmd, errmsg, sizeof(errmsg));
+
+    // Start with the surrounding medium already in the model -- nearly every
+    // problem needs it, and an empty material list is the first stumbling
+    // block. (Only from File > New: scripts get the empty document they ask for.)
+    static const char *air[] = {"Air", "Air (dry, CO2-free)", "Air", nullptr};
+    if (auto *e = activeEditor(); e && doctype >= 0 && doctype < 4 && air[doctype]) {
+        ensureMaterial(e, QString::fromUtf8(air[doctype]));
+        e->setFillMaterial(QString::fromUtf8(air[doctype]));
+        e->markSaved();
+        syncPreprocessorMenus(e);
+    }
+}
+
+bool MainWindow::ensureMaterial(EditorWidget *editor, const QString &name)
+{
+    DocumentBase *doc = editor ? editor->document() : nullptr;
+    if (!doc || name.isEmpty()) return false;
+    if (name == "<No Mesh>") return true;
+    auto has = [&]() {
+        for (int i = 0; i < doc->numMaterials(); i++)
+            if (QString::fromStdString(doc->materialName(i)) == name) return true;
+        return false;
+    };
+    if (has()) return true;
+    // The script layer acts on the active document; make sure that is this one.
+    for (auto *sub : m_mdiArea->subWindowList())
+        if (sub->widget() == editor) { m_mdiArea->setActiveSubWindow(sub); break; }
+    static const char *prefix[] = {"mi", "ei", "hi", "ci"};
+    const int pt = doc->physicsType();
+    if (pt < 0 || pt > 3) return false;
+    QString lit = name;
+    lit.replace("\\", "\\\\").replace("'", "\\'");
+    const QByteArray cmd = QString("%1_getmaterial('%2')").arg(prefix[pt], lit).toUtf8();
+    char errmsg[512] = {};
+    exec_python(cmd.constData(), errmsg, sizeof(errmsg));
+    if (m_materialPicker) m_materialPicker->setDocument(doc);
+    return has();
 }
 
 void MainWindow::onOpen()
@@ -1843,6 +1898,14 @@ void MainWindow::createPreprocessorUI()
         auto *e = activeEditor(); if (e) e->panDown();
     });
     m_preMenuView->addSeparator();
+    m_fillRegionsMenu = m_preMenuView->addAction(tr("&Fill Regions by Material"));
+    m_fillRegionsMenu->setCheckable(true);
+    m_fillRegionsMenu->setChecked(QSettings().value("editor/fillRegions", true).toBool());
+    connect(m_fillRegionsMenu, &QAction::toggled, [this](bool on) {
+        QSettings().setValue("editor/fillRegions", on);
+        for (auto *sub : m_mdiArea->subWindowList())
+            if (auto *e = qobject_cast<EditorWidget *>(sub->widget())) e->setFillRegions(on);
+    });
     m_showNamesMenu = m_preMenuView->addAction(tr("Show Block &Names"));
     m_showNamesMenu->setCheckable(true);
     m_showNamesMenu->setChecked(true);
@@ -2086,6 +2149,31 @@ void MainWindow::createPreprocessorUI()
             m_actSketch[tool] = a;
         }
         m_preTopBar2->addSeparator();
+
+        // Assign material: pick it here, then click regions with the bucket
+        QAction *fill = m_preTopBar2->addAction(sketchIcon(EditorWidget::SketchFill), tr("Assign Material"));
+        fill->setCheckable(true);
+        fill->setToolTip(tr("Assign material (F) -- click inside a region to fill it with the chosen material"));
+        m_modeGroup->addAction(fill);
+        connect(fill, &QAction::triggered, this, [this]() {
+            auto *e = activeEditor(); if (!e) return;
+            if (m_materialPicker) e->setFillMaterial(m_materialPicker->currentMaterial());
+            e->setSketchTool(EditorWidget::SketchFill);
+        });
+        m_actSketch[EditorWidget::SketchFill] = fill;
+        m_materialPicker = new MaterialPicker;
+        m_preTopBar2->addWidget(m_materialPicker);
+        connect(m_materialPicker, &MaterialPicker::aboutToShowPopup, this, [this]() {
+            auto *e = activeEditor();
+            m_materialPicker->setDocument(e ? e->document() : nullptr);
+        });
+        connect(m_materialPicker, &MaterialPicker::materialChosen, this, [this](const QString &name) {
+            auto *e = activeEditor(); if (!e) return;
+            e->setFillMaterial(name);
+            e->setSketchTool(EditorWidget::SketchFill);
+            e->setFocus();
+        });
+        m_preTopBar2->addSeparator();
     }
 
     m_actNode = m_preTopBar2->addAction(icon("node"), tr("Node"));
@@ -2129,6 +2217,7 @@ void MainWindow::createPreprocessorUI()
     addModeMenuItem(tr("&Rectangle"), m_actSketch[EditorWidget::SketchRect]);
     addModeMenuItem(tr("&Circle"), m_actSketch[EditorWidget::SketchCircle]);
     addModeMenuItem(tr("3-&Point Arc"), m_actSketch[EditorWidget::SketchArc3]);
+    addModeMenuItem(tr("Assign &Material"), m_actSketch[EditorWidget::SketchFill]);
     m_preMenuOperation->addSeparator();
     addModeMenuItem(tr("&Node"), m_actNode);
     addModeMenuItem(tr("&Segment"), m_actSegment);

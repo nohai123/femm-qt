@@ -81,6 +81,7 @@ public:
     QColor imagFluxLine() const { return c[CI_ImagFluxLine]; }
     QColor realVector() const { return c[CI_RealVector]; }
     QColor imagVector() const { return c[CI_ImagVector]; }
+    QColor text() const { return c[CI_Text]; }
     QColor densityColor(int level) const {
         if (level < 0) level = 0;
         if (level > 19) level = 19;

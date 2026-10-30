@@ -267,6 +267,7 @@ void EditorWidget::paintEvent(QPaintEvent *)
 
     if (!m_doc) return;
 
+    if (m_fillRegions) drawRegions(p);
     if (m_showGrid) drawGrid(p);
     hideMeshIfGeometryChanged();
     if (m_showMesh) drawMesh(p);
@@ -945,6 +946,7 @@ void EditorWidget::keyPressEvent(QKeyEvent *event)
         case Qt::Key_R: setSketchTool(SketchRect); return;
         case Qt::Key_C: setSketchTool(SketchCircle); return;
         case Qt::Key_A: setSketchTool(SketchArc3); return;
+        case Qt::Key_F: setSketchTool(SketchFill); return;
         case Qt::Key_N: setEditAction(0); return;
         case Qt::Key_S: setEditAction(1); return;
         case Qt::Key_B: setEditAction(2); return;
