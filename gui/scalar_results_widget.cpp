@@ -10,6 +10,7 @@
 #include "coord_display.h"
 #include "zoom_fit.h"
 #include "view_navigation.h"
+#include "hover_readout.h"
 #include "complex_format.h"
 #include "elec_results_doc.h"
 #include "heat_results_doc.h"
@@ -1260,6 +1261,34 @@ void ScalarResultsWidget::mouseMoveEvent(QMouseEvent *event)
 
     if (m_zoomWndDragging)
         update();
+
+    if (!m_hover) m_hover = new HoverReadout(this);
+    m_hover->showAt(event->pos(), m_panning ? QString() : hoverText(xd, yd));
+}
+
+void ScalarResultsWidget::leaveEvent(QEvent *event)
+{
+    if (m_hover) m_hover->hide();
+    QWidget::leaveEvent(event);
+}
+
+QString ScalarResultsWidget::hoverText(double xd, double yd)
+{
+    if (m_physicsType == 3 && m_currDoc) {
+        CPointVals u;
+        if (!m_currDoc->GetPointValues(xd, yd, u)) return QString();
+        const double J = abs(abs(u.Jx) + CComplex(0,1)*abs(u.Jy));
+        const double E = abs(abs(u.Ex) + CComplex(0,1)*abs(u.Ey));
+        return QString("V = %1 V\n|J| = %2 A/m\u00b2\n|E| = %3 V/m")
+            .arg(abs(u.V), 0, 'g', 4).arg(J, 0, 'g', 4).arg(E, 0, 'g', 4);
+    }
+    EPointVals u;
+    if (!m_view.GetPointValues(xd, yd, u)) return QString();
+    if (m_physicsType == 2)
+        return QString("T = %1 K\n|F| = %2 W/m\u00b2")
+            .arg(u.V, 0, 'g', 5).arg(abs(u.D), 0, 'g', 4);
+    return QString("V = %1 V\n|E| = %2 V/m")
+        .arg(u.V, 0, 'g', 5).arg(abs(u.E), 0, 'g', 4);
 }
 
 void ScalarResultsWidget::mouseReleaseEvent(QMouseEvent *event)

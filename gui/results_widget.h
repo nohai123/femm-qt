@@ -17,6 +17,7 @@ class ResultsDoc;
 class OutputDialog;
 class MagneticsHandler;
 
+class HoverReadout;
 class ResultsWidget : public QWidget
 {
     Q_OBJECT
@@ -88,6 +89,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     bool event(QEvent *event) override;
+    void leaveEvent(QEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
@@ -155,6 +157,8 @@ private:
     QPushButton *m_playBtn = nullptr;
     QTimer *m_playTimer = nullptr;
     void updatePhaseSliderVisibility();
+    HoverReadout *m_hover = nullptr;
+    QString hoverText(double x, double y) const;
 };
 
 #endif // RESULTS_WIDGET_H

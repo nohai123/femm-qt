@@ -23,6 +23,7 @@ class CurrResultsDoc;
 class OutputDialog;
 class PostprocessorHandler;
 
+class HoverReadout;
 class ScalarResultsWidget : public QWidget
 {
     Q_OBJECT
@@ -103,6 +104,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     bool event(QEvent *event) override;
+    void leaveEvent(QEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
@@ -183,6 +185,8 @@ private:
     // (mesh nodes carry conductor selections, so clearing only labels would
     // leave a conductor selected). Invalidates the stress-tensor mask.
     void clearAreaSelection();
+    HoverReadout *m_hover = nullptr;
+    QString hoverText(double x, double y);
 };
 
 #endif // SCALAR_RESULTS_WIDGET_H

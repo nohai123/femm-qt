@@ -11,9 +11,12 @@
 #include "mag_document.h"
 #include "problem_check.h"
 #include "model_panel.h"
+#include "results_widget.h"
+#include "results_doc.h"
 #include "material_picker.h"
 #include <QTreeWidget>
 #include <QSpinBox>
+#include <QLabel>
 
 #include <QApplication>
 #include <QtTest/QtTest>
@@ -347,6 +350,53 @@ private slots:
 
         const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
         if (!dir.isEmpty()) { panel.resize(260, 420); panel.refresh(ed); panel.grab().save(dir + "/model_panel.png"); }
+    }
+
+    // Needs a solved magnetics problem: FEMM_GUI_TEST_ANS=<file.ans>
+    void resultsHoverShowsValues()
+    {
+        const QString ans = qEnvironmentVariable("FEMM_GUI_TEST_ANS");
+        if (ans.isEmpty()) QSKIP("FEMM_GUI_TEST_ANS not set");
+        ed->hide();   // offscreen windows overlap; the editor would get the moves
+        auto *rd = new ResultsDoc;
+        QVERIFY(rd->OpenDocument(ans.toStdString()));
+        ResultsWidget rw(rd);
+        rw.resize(600, 500);
+        rw.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&rw));
+        QTest::qWait(50);
+        rw.zoomFit();
+
+        auto move = [&](QPointF p) {
+            QMouseEvent mv(QEvent::MouseMove, p, rw.mapToGlobal(p), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(&rw, &mv);
+        };
+        // Calibrate screen -> drawing from two moves, then aim at an element
+        double cx = 0, cy = 0;
+        connect(&rw, &ResultsWidget::coordinatesChanged, [&](double x, double y) { cx = x; cy = y; });
+        rw.setSnapToGrid(false);
+        move(QPointF(100, 100)); const double ax = cx, ay = cy;
+        move(QPointF(400, 300)); const double bx = cx, by = cy;
+        const double sx = 300 / (bx - ax), sy = 200 / (by - ay);
+        // Walk the cursor until it is over a meshed point; the readout must
+        // then be showing |B|, and it must be hidden off the mesh.
+        QLabel *hover = nullptr;
+        bool sawOff = false;
+        for (int x = 2; x < 600 && !hover; x += 3) {
+            for (int y = 2; y < 500 && !hover; y += 3) {
+                move(QPointF(x, y));
+                ResultsDoc::PointVals u;
+                const bool on = rd->GetPointValues(cx, cy, u);
+                QLabel *vis = nullptr;
+                for (auto *l : rw.findChildren<QLabel *>()) if (l->isVisible() && l->text().contains("|B|")) vis = l;
+                if (on) { QVERIFY2(vis, "readout shown over the mesh"); hover = vis; }
+                else if (!vis) sawOff = true;
+            }
+        }
+        QVERIFY(sawOff);
+        QVERIFY2(hover, "hover readout visible over the mesh");
+        const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
+        if (!dir.isEmpty()) rw.grab().save(dir + "/results_hover.png");
     }
 
     // Not a check: with FEMM_GUI_TEST_SHOTS=<dir> set, saves pictures of the

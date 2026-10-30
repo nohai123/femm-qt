@@ -9,6 +9,7 @@
 #include "coord_display.h"
 #include "zoom_fit.h"
 #include "view_navigation.h"
+#include "hover_readout.h"
 #include "complex_format.h"
 #include "results_doc.h"
 #include "postproc_select.h"
@@ -1100,6 +1101,30 @@ void ResultsWidget::mouseMoveEvent(QMouseEvent *event)
 
     if (m_zoomWndDragging)
         update();
+
+    if (!m_hover) m_hover = new HoverReadout(this);
+    m_hover->showAt(event->pos(), (m_panning || m_zoomWndDragging) ? QString() : hoverText(xd, yd));
+}
+
+void ResultsWidget::leaveEvent(QEvent *event)
+{
+    if (m_hover) m_hover->hide();
+    QWidget::leaveEvent(event);
+}
+
+QString ResultsWidget::hoverText(double xd, double yd) const
+{
+    if (!m_doc) return QString();
+    ResultsDoc::PointVals u;
+    if (!m_doc->GetPointValues(xd, yd, u)) return QString();
+    const double B = sqrt(u.B1.re*u.B1.re + u.B2.re*u.B2.re + u.B1.im*u.B1.im + u.B2.im*u.B2.im);
+    const double H = sqrt(u.H1.re*u.H1.re + u.H2.re*u.H2.re + u.H1.im*u.H1.im + u.H2.im*u.H2.im);
+    QString t = QString("|B| = %1 T\n|H| = %2 A/m").arg(B, 0, 'g', 4).arg(H, 0, 'g', 4);
+    if (u.Js.re != 0 || u.Js.im != 0 || u.Je.re != 0 || u.Je.im != 0) {
+        const CComplex J = u.Js + u.Je;
+        t += QString("\n|J| = %1 MA/m\u00b2").arg(abs(J) * 1e-6, 0, 'g', 4);
+    }
+    return t;
 }
 
 void ResultsWidget::mouseReleaseEvent(QMouseEvent *event)
