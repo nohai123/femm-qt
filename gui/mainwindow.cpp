@@ -93,6 +93,11 @@
 #include "view_colors.h"
 #include "command_palette.h"
 #include <QStackedWidget>
+#include <QLockFile>
+#include <QStandardPaths>
+#include <QUuid>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QStyleHints>
 
 static bool femmOpenable(const QString &path);
@@ -328,6 +333,21 @@ MainWindow::MainWindow(TcpServer *server, QWidget *parent)
     m_modifiedTicker->setInterval(500);
     connect(m_modifiedTicker, &QTimer::timeout, this, &MainWindow::refreshModifiedMarks);
     m_modifiedTicker->start();
+
+    // Autosave -- not for instances a binding launched to run a script
+    if (!(m_server && m_server->exitOnDisconnect())) {
+        const QString base = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/autosave";
+        m_autosaveDir = base + "/" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        QDir().mkpath(m_autosaveDir);
+        m_autosaveLock = new QLockFile(m_autosaveDir + "/instance.lock");
+        m_autosaveLock->setStaleLockTime(0);
+        m_autosaveLock->tryLock();
+        m_autosaveTimer = new QTimer(this);
+        m_autosaveTimer->setInterval(QSettings().value("autosave/intervalSec", 120).toInt() * 1000);
+        connect(m_autosaveTimer, &QTimer::timeout, this, &MainWindow::autosaveNow);
+        m_autosaveTimer->start();
+        QTimer::singleShot(400, this, &MainWindow::offerRecovery);
+    }
 }
 
 MainWindow::~MainWindow() {}
@@ -1394,7 +1414,7 @@ void MainWindow::onSave()
     if (!doc->SaveDocument(doc->filePath))
         QMessageBox::warning(this, tr("Save Failed"),
             tr("Could not save to %1").arg(QString::fromStdString(doc->filePath)));
-    else editor->markSaved();
+    else { editor->markSaved(); removeAutosave(editor); }
     auto *sub = m_mdiArea->activeSubWindow();
     if (sub) sub->setWindowTitle(QFileInfo(QString::fromStdString(doc->filePath)).fileName());
 }
@@ -1436,6 +1456,7 @@ void MainWindow::onSaveAs()
         return;
     }
     editor->markSaved();
+    removeAutosave(editor);
     // Find the subwindow containing this editor (don't rely on activeSubWindow
     // which may be stale after the file dialog)
     for (auto *sub : m_mdiArea->subWindowList())
@@ -3090,10 +3111,103 @@ bool MainWindow::confirmDiscard(QMdiSubWindow *sub)
         // Save As may have been cancelled, or the write may have failed.
         return !documentDiffersFromDisk(editor->document());
     case QMessageBox::Discard:
+        removeAutosave(editor);
         return true;
     default:
         return false;
     }
+}
+
+QString MainWindow::autosavePathFor(EditorWidget *editor) const
+{
+    if (m_autosaveDir.isEmpty() || !editor || !editor->document()) return QString();
+    QString id = editor->property("femmAutosaveId").toString();
+    if (id.isEmpty()) {
+        id = QUuid::createUuid().toString(QUuid::Id128).left(12);
+        editor->setProperty("femmAutosaveId", id);
+    }
+    return m_autosaveDir + "/" + id + QString::fromStdString(editor->document()->fileExtension());
+}
+
+void MainWindow::removeAutosave(EditorWidget *editor)
+{
+    const QString p = autosavePathFor(editor);
+    if (p.isEmpty()) return;
+    QFile::remove(p);
+    QFile::remove(p + ".json");
+}
+
+void MainWindow::autosaveNow()
+{
+    if (py_is_running()) return;   // never in the middle of a script
+    for (auto *sub : m_mdiArea->subWindowList()) {
+        auto *editor = qobject_cast<EditorWidget *>(sub->widget());
+        if (!editor || !editor->document()) continue;
+        DocumentBase *doc = editor->document();
+        if (!documentDiffersFromDisk(doc)) { removeAutosave(editor); continue; }
+        const QString p = autosavePathFor(editor);
+        if (p.isEmpty() || !doc->SaveDocument(p.toStdString())) continue;
+        QJsonObject meta;
+        meta["original"] = QString::fromStdString(doc->filePath);
+        meta["title"] = sub->windowTitle();
+        meta["time"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+        QFile f(p + ".json");
+        if (f.open(QIODevice::WriteOnly)) f.write(QJsonDocument(meta).toJson());
+    }
+}
+
+void MainWindow::offerRecovery()
+{
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/autosave";
+    struct Item { QString file, original, title, time, dir; };
+    QList<Item> items;
+    QStringList deadDirs;
+    for (const QString &d : QDir(base).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QString dir = base + "/" + d;
+        if (dir == m_autosaveDir) continue;
+        QLockFile lock(dir + "/instance.lock");
+        lock.setStaleLockTime(0);
+        if (!lock.tryLock()) continue;   // another FEMM is still running there
+        lock.unlock();
+        deadDirs << dir;
+        for (const QString &f : QDir(dir).entryList({"*.fem", "*.fee", "*.feh", "*.fec"}, QDir::Files)) {
+            QFile mf(dir + "/" + f + ".json");
+            QJsonObject meta;
+            if (mf.open(QIODevice::ReadOnly)) meta = QJsonDocument::fromJson(mf.readAll()).object();
+            items.push_back({dir + "/" + f, meta["original"].toString(), meta["title"].toString(),
+                             meta["time"].toString(), dir});
+        }
+    }
+    if (items.isEmpty()) {
+        for (const QString &d : deadDirs) QDir(d).removeRecursively();
+        return;
+    }
+    QStringList names;
+    for (const auto &it : items)
+        names << QStringLiteral("\u2022 %1 (%2)").arg(it.original.isEmpty() ? tr("untitled") : QFileInfo(it.original).fileName(),
+                                                      QDateTime::fromString(it.time, Qt::ISODate).toString("dd.MM. HH:mm"));
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Question);
+    box.setText(tr("FEMM did not close normally last time."));
+    box.setInformativeText(tr("These models had unsaved changes:\n%1\n\nRecover them?").arg(names.join("\n")));
+    QPushButton *recover = box.addButton(tr("Recover"), QMessageBox::AcceptRole);
+    box.addButton(tr("Discard"), QMessageBox::DestructiveRole);
+    box.setDefaultButton(recover);
+    box.exec();
+    if (box.clickedButton() == recover) {
+        for (const auto &it : items) {
+            openPath(it.file);
+            auto *e = activeEditor();
+            if (!e || !e->document()) continue;
+            // Back under its own name, but still unsaved
+            e->document()->filePath = it.original.toStdString();
+            for (auto *sub : m_mdiArea->subWindowList())
+                if (sub->widget() == e)
+                    sub->setWindowTitle(it.original.isEmpty() ? tr("Recovered") : QFileInfo(it.original).fileName());
+            e->document()->pushUndo();   // counts as modified
+        }
+    }
+    for (const QString &d : deadDirs) QDir(d).removeRecursively();
 }
 
 void MainWindow::applyTheme()
@@ -3160,6 +3274,11 @@ void MainWindow::closeEvent(QCloseEvent *event)
     // Every document has been dealt with; the sub-windows must not ask again
     // as they are torn down.
     m_closingAll = true;
+    // A clean exit leaves nothing to recover
+    if (!m_autosaveDir.isEmpty()) {
+        if (m_autosaveLock) m_autosaveLock->unlock();
+        QDir(m_autosaveDir).removeRecursively();
+    }
     event->accept();
 }
 

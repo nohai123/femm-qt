@@ -211,6 +211,17 @@ private:
     void createNewProblem(int physics, bool askSettings);
     // Reload drawing colours after a light/dark switch and repaint.
     void applyTheme();
+
+    // Autosave: modified models are written to a per-instance folder every
+    // couple of minutes; a folder left behind by an instance that did not
+    // exit cleanly is offered for recovery at the next start.
+    void autosaveNow();
+    void offerRecovery();
+    void removeAutosave(EditorWidget *editor);
+    QString autosavePathFor(EditorWidget *editor) const;
+    QString m_autosaveDir;
+    class QLockFile *m_autosaveLock = nullptr;
+    QTimer *m_autosaveTimer = nullptr;
     QAction *m_actMaterialLibrary = nullptr;
     QAction *m_fillRegionsMenu = nullptr;
     // Copies a library material into the active document if it lacks it.

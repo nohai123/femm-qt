@@ -51,6 +51,7 @@ public:
     // an attached client -- a script, or an AI assistant via MCP -- can come
     // and go without closing the user's window and work.
     void setExitOnDisconnect(bool on) { m_exitOnDisconnect = on; }
+    bool exitOnDisconnect() const { return m_exitOnDisconnect; }
     bool isListening() const { return m_listening; }
 
     // Raw socket accessors. Exposed so the GUI can attach a QSocketNotifier
