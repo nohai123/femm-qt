@@ -97,6 +97,7 @@
 #include "plot_widget.h"
 #include "report_export.h"
 #include "getting_started.h"
+#include "region_map.h"
 #include <QStackedWidget>
 #include <QLockFile>
 #include <QStandardPaths>
@@ -165,6 +166,12 @@ static QIcon sketchIcon(int tool)
             p.drawRect(QRectF(2, 2, 12, 11));
             p.setPen(QPen(QColor(0, 0, 200), 1.2, Qt::DashLine));
             p.drawRect(QRectF(5, 5, 6, 5));
+            break;
+        case EditorWidget::SketchExtend:
+            p.drawLine(QPointF(2, 7.5), QPointF(8, 7.5));
+            p.drawLine(QPointF(13.5, 2), QPointF(13.5, 13));
+            p.setPen(QPen(QColor(0, 0, 200), 1.2, Qt::DashLine));
+            p.drawLine(QPointF(8, 7.5), QPointF(13, 7.5));
             break;
         case EditorWidget::SketchDimension:
             p.drawLine(QPointF(2, 11), QPointF(14, 11));
@@ -491,7 +498,7 @@ EditorWidget *MainWindow::addEditorTab(DocumentBase *doc, const QString &title)
         showEditorContextMenu(editor, pos);
     });
     connect(editor, &EditorWidget::sketchToolChanged, this, [this](int tool) {
-        if (tool > 0 && tool < 10 && m_actSketch[tool]) m_actSketch[tool]->setChecked(true);
+        if (tool > 0 && tool < 11 && m_actSketch[tool]) m_actSketch[tool]->setChecked(true);
     });
 
     // Apply saved preferences
@@ -1289,7 +1296,7 @@ void MainWindow::syncPreprocessorMenus(EditorWidget *editor)
         case 3: modeAct = m_actArc;     break;
         case 4: modeAct = m_actGroup;   break;
     }
-    if (editor->sketchTool() > 0 && editor->sketchTool() < 10)
+    if (editor->sketchTool() > 0 && editor->sketchTool() < 11)
         modeAct = m_actSketch[editor->sketchTool()];
     if (m_materialPicker) {
         m_materialPicker->setDocument(editor->document());
@@ -1977,7 +1984,7 @@ void MainWindow::createCommonMenus()
         updateStatus(tr("View copied to clipboard"));
     });
     edit->addSeparator();
-    edit->addAction(tr("&Preferences..."), QKeySequence(), [this]() {
+    QAction *prefsAct = edit->addAction(tr("&Preferences..."), QKeySequence::Preferences, [this]() {
         auto *e = activeEditor();
         if (e) {
             int pt = e->document() ? e->document()->physicsType() : 0;
@@ -1990,6 +1997,8 @@ void MainWindow::createCommonMenus()
         auto *s = activeScalarResults();
         if (s) { s->showPrefsDialog(this); return; }
     });
+    // macOS: FEMM > Settings..., Cmd+,
+    prefsAct->setMenuRole(QAction::PreferencesRole);
     // Application-wide rather than per-document, so it lives beside
     // Preferences rather than inside it -- and unlike Preferences it is
     // available with no document open.
@@ -2018,10 +2027,15 @@ void MainWindow::createPreprocessorUI()
     m_preMenuView->addAction(tr("Zoom &Natural"), QKeySequence(), [this]() {
         auto *e = activeEditor(); if (e) e->zoomFit();
     });
+    m_preMenuView->addAction(tr("Zoom to &Selection"), QKeySequence(), [this]() {
+        auto *e = activeEditor(); if (e) e->zoomSelection();
+    });
     m_preMenuView->addAction(tr("Zoom &Window"), QKeySequence(), [this]() {
         auto *e = activeEditor(); if (e) e->zoomWindow();
     });
-    m_preMenuView->addAction(tr("&Keyboard Zoom..."), QKeySequence(), [this]() {
+    // Rarely used: keyboard zoom and scrolling (the arrow keys scroll too)
+    QMenu *nav = m_preMenuView->addMenu(tr("Na&vigation"));
+    nav->addAction(tr("&Keyboard Zoom..."), QKeySequence(), [this]() {
         auto *e = activeEditor(); if (!e) return;
         QDialog dlg(this);
         dlg.setWindowTitle(tr("Keyboard Zoom"));
@@ -2050,16 +2064,16 @@ void MainWindow::createPreprocessorUI()
         }
     });
     m_preMenuView->addSeparator();
-    m_preMenuView->addAction(tr("Scroll &Left"), QKeySequence(), [this]() {
+    nav->addAction(tr("Scroll &Left"), QKeySequence(), [this]() {
         auto *e = activeEditor(); if (e) e->panLeft();
     });
-    m_preMenuView->addAction(tr("Scroll &Right"), QKeySequence(), [this]() {
+    nav->addAction(tr("Scroll &Right"), QKeySequence(), [this]() {
         auto *e = activeEditor(); if (e) e->panRight();
     });
-    m_preMenuView->addAction(tr("Scroll &Up"), QKeySequence(), [this]() {
+    nav->addAction(tr("Scroll &Up"), QKeySequence(), [this]() {
         auto *e = activeEditor(); if (e) e->panUp();
     });
-    m_preMenuView->addAction(tr("Scroll &Down"), QKeySequence(), [this]() {
+    nav->addAction(tr("Scroll &Down"), QKeySequence(), [this]() {
         auto *e = activeEditor(); if (e) e->panDown();
     });
     m_preMenuView->addSeparator();
@@ -2234,6 +2248,8 @@ void MainWindow::createPreprocessorUI()
         }
     });
     m_preMenuProperties->addSeparator();
+    m_preMenuProperties->addAction(tr("&Air Space Around Model"), QKeySequence(), this, &MainWindow::onAirSpace)
+        ->setToolTip(tr("Surround the model with an open boundary and fill the space with air -- for fields in free space"));
     m_actMaterialLibrary = m_preMenuProperties->addAction(tr("Materials &Library..."), QKeySequence(), [this]() {
         auto *e = activeEditor();
         if (!e || !e->document()) return;
@@ -2346,6 +2362,7 @@ void MainWindow::createPreprocessorUI()
         struct { int tool; const char *name; const char *tip; } edits[] = {
             {EditorWidget::SketchTrim, QT_TR_NOOP("Trim"), QT_TR_NOOP("Trim (T) -- click a piece of a line or arc to remove it")},
             {EditorWidget::SketchOffset, QT_TR_NOOP("Offset"), QT_TR_NOOP("Offset (O) -- parallel copy of a contour at a distance")},
+            {EditorWidget::SketchExtend, QT_TR_NOOP("Extend"), QT_TR_NOOP("Extend (E) -- lengthen a line to the next line or arc")},
             {EditorWidget::SketchDimension, QT_TR_NOOP("Dimension"), QT_TR_NOOP("Dimension (D) -- show lengths and radii; click to set an exact value")},
         };
         for (auto &t : edits) {
@@ -2421,6 +2438,7 @@ void MainWindow::createPreprocessorUI()
     addModeMenuItem(tr("Assign &Material"), m_actSketch[EditorWidget::SketchFill]);
     addModeMenuItem(tr("&Trim"), m_actSketch[EditorWidget::SketchTrim]);
     addModeMenuItem(tr("O&ffset"), m_actSketch[EditorWidget::SketchOffset]);
+    addModeMenuItem(tr("&Extend"), m_actSketch[EditorWidget::SketchExtend]);
     addModeMenuItem(tr("&Dimension"), m_actSketch[EditorWidget::SketchDimension]);
     m_preMenuOperation->addSeparator();
     addModeMenuItem(tr("&Node"), m_actNode);
@@ -3075,6 +3093,36 @@ void MainWindow::onCopy()
     e->update();
 }
 
+void MainWindow::onAirSpace()
+{
+    auto *e = activeEditor(); if (!e || !e->document()) return;
+    DocumentBase *d = e->document();
+    static const char *prefix[] = {"mi", "ei", "hi", nullptr};
+    static const char *air[] = {"Air", "Air (dry, CO2-free)", "Air", nullptr};
+    const int pt = d->physicsType();
+    if (pt < 0 || pt > 2) {
+        QMessageBox::information(this, tr("Air Space"), tr("Open boundaries are available for magnetics, electrostatics and heat flow."));
+        return;
+    }
+    double x0, y0, x1, y1;
+    if (!d->getBoundingBox(x0, y0, x1, y1)) {
+        QMessageBox::information(this, tr("Air Space"), tr("Draw the model first."));
+        return;
+    }
+    d->pushUndo();
+    char err[512] = {};
+    if (exec_python((QString(prefix[pt]) + "_makeABC()").toUtf8().constData(), err, sizeof err) != 0) {
+        QMessageBox::warning(this, tr("Air Space"), QString::fromUtf8(err));
+        return;
+    }
+    // Fill the gap(s) between the model and the shells with air
+    if (!ensureMaterial(e, QString::fromUtf8(air[pt]))) return;
+    const int filled = e->fillUnlabeledOutside(QRectF(QPointF(x0, y0), QPointF(x1, y1)).normalized(), air[pt]);
+    e->zoomFit();
+    e->update();
+    updateStatus(tr("Open boundary added; %n region(s) filled with air.", "", filled));
+}
+
 void MainWindow::onPattern()
 {
     auto *e = activeEditor(); if (!e || !e->document()) return;
@@ -3120,6 +3168,9 @@ void MainWindow::showEditorContextMenu(EditorWidget *e, const QPoint &pos)
     m.addAction(tr("Trim"), [e]() { e->setSketchTool(EditorWidget::SketchTrim); });
     m.addAction(tr("Dimension"), [e]() { e->setSketchTool(EditorWidget::SketchDimension); });
     m.addSeparator();
+    m.addAction(tr("Extend"), [e]() { e->setSketchTool(EditorWidget::SketchExtend); });
+    m.addSeparator();
+    m.addAction(tr("Zoom to Selection"), [e]() { e->zoomSelection(); });
     m.addAction(tr("Zoom to Fit"), [e]() { e->zoomFit(); });
     m.exec(pos);
 }

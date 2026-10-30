@@ -32,6 +32,7 @@ ProblemDialog::ProblemDialog(DocumentBase *doc, QWidget *parent)
 
     // Frequency (magnetics and current flow)
     m_frequency = new PyLineEdit;
+    m_frequency->setToolTip(tr("Frequency of the currents in Hz. 0 = DC/static (magnetics). Above 0 the problem is solved as AC (eddy currents, skin effect)."));
     if (isMag) {
         auto *magDoc = dynamic_cast<MagDocument*>(doc);
         m_frequency->setText(QString::number(magDoc ? magDoc->Frequency : 0, 'g', 15));
@@ -45,6 +46,7 @@ ProblemDialog::ProblemDialog(DocumentBase *doc, QWidget *parent)
     }
 
     m_lengthUnits = new QComboBox;
+    m_lengthUnits->setToolTip(tr("Unit of all coordinates and lengths you draw."));
     m_lengthUnits->addItem(tr("Inches"));       // 0
     m_lengthUnits->addItem(tr("Millimeters"));   // 1
     m_lengthUnits->addItem(tr("Centimeters"));   // 2
@@ -55,6 +57,7 @@ ProblemDialog::ProblemDialog(DocumentBase *doc, QWidget *parent)
     form->addRow(tr("Length Units:"), m_lengthUnits);
 
     m_probType = new QComboBox;
+    m_probType->setToolTip(tr("Planar: a cross-section of something long (depth into the page). Axisymmetric: a body of revolution; x is the radius r >= 0, y the axis z."));
     m_probType->addItem(tr("Planar"));          // 0
     m_probType->addItem(tr("Axisymmetric"));    // 1
     m_probType->setCurrentIndex(doc->ProblemType);
@@ -63,20 +66,24 @@ ProblemDialog::ProblemDialog(DocumentBase *doc, QWidget *parent)
             this, &ProblemDialog::onProbTypeChanged);
 
     m_precision = new PyLineEdit;
+    m_precision->setToolTip(tr("Stopping tolerance of the linear solver. 1e-8 is a good default; smaller is slower and rarely needed."));
     m_precision->setText(QString::number(doc->Precision, 'g', 15));
     form->addRow(tr("Precision:"), m_precision);
 
     m_depth = new PyLineEdit;
+    m_depth->setToolTip(tr("Planar problems: length of the model into the page, in the length units. Forces, energies and inductances scale with it."));
     m_depth->setText(QString::number(doc->Depth, 'g', 15));
     m_depth->setEnabled(doc->ProblemType == 0);
     form->addRow(tr("Depth:"), m_depth);
 
     m_minAngle = new PyLineEdit;
+    m_minAngle->setToolTip(tr("Smallest allowed angle in a mesh triangle (degrees). 30 gives good-quality meshes; up to about 33 is possible."));
     m_minAngle->setText(QString::number(doc->MinAngle, 'g', 15));
     form->addRow(tr("Min Angle (deg):"), m_minAngle);
 
     // AC Solver (magnetics only)
     m_acSolver = new QComboBox;
+    m_acSolver->setToolTip(tr("Nonlinear AC problems: Successive Approximation is robust; Newton converges faster when it converges."));
     m_acSolver->addItem(tr("Successive Approximation"));  // 0
     m_acSolver->addItem(tr("Newton"));                     // 1
     if (isMag) {
@@ -89,6 +96,7 @@ ProblemDialog::ProblemDialog(DocumentBase *doc, QWidget *parent)
 
     // Smart Mesh
     m_smartMesh = new QComboBox;
+    m_smartMesh->setToolTip(tr("On: the mesh is refined automatically near small features and corners. Off: only the mesh sizes you set are used."));
     m_smartMesh->addItem(tr("Off"));   // 0
     m_smartMesh->addItem(tr("On"));    // 1
     // SmartMesh is a common DocumentBase field; read it directly so every
@@ -100,6 +108,7 @@ ProblemDialog::ProblemDialog(DocumentBase *doc, QWidget *parent)
     // Previous solution file + browse button (magnetics only)
     m_prevSoln = new QLineEdit;
     m_prevType = new QComboBox;
+    m_prevType->setToolTip(tr("Start from an earlier solution: Incremental for small-signal permeability around an operating point, Frozen to keep the permeabilities of that solution."));
     if (isMag) {
         auto *magDoc = dynamic_cast<MagDocument*>(doc);
         auto *prevRow = new QHBoxLayout;

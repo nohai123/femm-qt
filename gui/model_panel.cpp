@@ -17,6 +17,8 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QSlider>
+#include <cmath>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTreeWidget>
@@ -123,6 +125,19 @@ ModelPanel::ModelPanel(QWidget *parent)
         m_labelTurns->setToolTip(tr("Number of turns; negative reverses the current direction"));
         m_turnsLabel = new QLabel(tr("Turns:"));
         f->addRow(m_turnsLabel, m_labelTurns);
+        // Mesh: automatic, or coarse -> fine relative to the model size
+        m_meshSlider = new QSlider(Qt::Horizontal);
+        m_meshSlider->setRange(0, 10);
+        m_meshSlider->setPageStep(1);
+        m_meshSlider->setToolTip(tr("Element size in this region: left = automatic, further right = finer mesh"));
+        m_meshInfo = new QLabel;
+        m_meshInfo->setStyleSheet("color: gray");
+        auto *mw = new QWidget;
+        auto *ml = new QVBoxLayout(mw);
+        ml->setContentsMargins(0, 0, 0, 0);
+        ml->addWidget(m_meshSlider);
+        ml->addWidget(m_meshInfo);
+        f->addRow(tr("Mesh:"), mw);
         f->addRow(editAll(2));
         m_stack->addWidget(pg);
 
@@ -146,6 +161,16 @@ ModelPanel::ModelPanel(QWidget *parent)
             for (auto &b : d->blocklist) if (b.IsSelected) b.InCircuit = c;
             m_editor->update();
             m_treeSig = 0;
+        });
+        connect(m_meshSlider, &QSlider::valueChanged, this, [this](int k) {
+            const double h = k ? modelSize() * 0.2 * std::pow(0.6, k - 1) : 0;
+            m_meshInfo->setText(k ? tr("element size about %1").arg(h, 0, 'g', 3) : tr("automatic"));
+            if (m_updating || !m_editor) return;
+            DocumentBase *d = m_editor->document();
+            d->pushUndo();
+            // FEMM stores the size as a target triangle area
+            for (auto &b : d->blocklist) if (b.IsSelected) b.MaxArea = k ? M_PI * h * h / 4 : 0;
+            m_editor->update();
         });
         connect(m_labelTurns, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int v) {
             if (m_updating || !m_editor) return;
@@ -396,6 +421,16 @@ void ModelPanel::rebuildInspector()
         fillCombo(m_labelCircuit, d->numCircuits(), [d](int i) { return d->circuitName(i); },
                   first->InCircuit, mixCirc);
         m_labelTurns->setValue(mixTurns ? 0 : first->Turns);
+        {
+            int k = 0;
+            if (first->MaxArea > 0) {
+                const double h = std::sqrt(4 * first->MaxArea / M_PI), L = modelSize();
+                k = std::clamp((int)std::lround(1 + std::log(h / (0.2 * L)) / std::log(0.6)), 1, 10);
+            }
+            m_meshSlider->setValue(k);
+            m_meshInfo->setText(k ? tr("element size about %1").arg(std::sqrt(4 * first->MaxArea / M_PI), 0, 'g', 3)
+                                  : tr("automatic"));
+        }
         m_stack->setCurrentIndex(1);
     } else if (ns) {
         m_selTitle->setText(tr("%n segment(s)/arc(s) selected", "", ns));
@@ -412,4 +447,11 @@ void ModelPanel::rebuildInspector()
         m_stack->setCurrentIndex(3);
     }
     m_updating = false;
+}
+
+double ModelPanel::modelSize() const
+{
+    double x0, y0, x1, y1;
+    if (!m_editor || !m_editor->document() || !m_editor->document()->getBoundingBox(x0, y0, x1, y1)) return 1;
+    return std::max(x1 - x0, y1 - y0);
 }

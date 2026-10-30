@@ -484,6 +484,29 @@ void EditorWidget::mousePressEvent(QMouseEvent *event)
         return;
     }
 
+    // ---- Space held + drag: pan (mouse users without a middle button) ----
+    if (m_spaceDown && event->button() == Qt::LeftButton) {
+        m_panning = true;
+        m_spacePanned = true;
+        m_panStart = event->pos();
+        m_panOxStart = m_ox;
+        m_panOyStart = m_oy;
+        setCursor(Qt::ClosedHandCursor);
+        return;
+    }
+
+    // ---- Alt + drag on a magnet label: point its magnetization ----
+    if (event->button() == Qt::LeftButton && (event->modifiers() & Qt::AltModifier)) {
+        const int j = m_doc->ClosestBlockLabel(m_mx, m_my);
+        if (j >= 0 && m_doc->blocklist[j].GetDistance(m_mx, m_my) < 2 * pickTolerance() &&
+            m_doc->materialCoercivity(m_doc->blocklist[j].BlockType) != 0) {
+            m_doc->pushUndo();
+            m_magDirLabel = j;
+            emit statusMessage(tr("Drag to point the magnetization; Shift snaps to 15 degrees."));
+            return;
+        }
+    }
+
     // ---- Select tool: click / window / drag ----
     if (m_sketchTool == SketchSelect && m_zoomWndFlag == 0 && m_selectWndFlag == 0 &&
         m_selectCircFlag == 0 && selectPress(event))
@@ -712,6 +735,16 @@ void EditorWidget::mouseMoveEvent(QMouseEvent *event)
     }
     emit coordinatesChanged(dx, dy);
 
+    if (m_magDirLabel >= 0 && (event->buttons() & Qt::LeftButton)) {
+        auto &b = m_doc->blocklist[m_magDirLabel];
+        double a = std::atan2(m_my - b.y, m_mx - b.x) * 180.0 / M_PI;
+        if (event->modifiers() & Qt::ShiftModifier) a = std::round(a / 15.0) * 15.0;
+        b.MagDir = a;
+        b.MagDirFctn.clear();
+        emit statusMessage(tr("Magnetization direction: %1\u00b0").arg(a, 0, 'f', 1));
+        update();
+        return;
+    }
     if (m_sketchTool == SketchSelect && selectMove(event)) return;
 
     if (m_panning) {
@@ -820,6 +853,12 @@ void EditorWidget::mouseDoubleClickEvent(QMouseEvent *event)
 
 void EditorWidget::mouseReleaseEvent(QMouseEvent *event)
 {
+    if (m_magDirLabel >= 0) { m_magDirLabel = -1; return; }
+    if (m_spacePanned && m_panning && event->button() == Qt::LeftButton) {
+        m_panning = false;
+        setCursor(m_spaceDown ? Qt::OpenHandCursor : Qt::ArrowCursor);
+        return;
+    }
     if (m_sketchTool == SketchSelect && selectRelease(event)) return;
     if (m_panning && event->button() == Qt::MiddleButton) {
         m_panning = false;
@@ -936,6 +975,25 @@ void EditorWidget::leaveEvent(QEvent *event)
     QWidget::leaveEvent(event);
 }
 
+void EditorWidget::keyReleaseEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Space && !event->isAutoRepeat() && m_spaceDown) {
+        m_spaceDown = false;
+        unsetCursor();
+        if (!m_spacePanned) openSelected();
+        return;
+    }
+    QWidget::keyReleaseEvent(event);
+}
+
+void EditorWidget::zoomSelection()
+{
+    double x0, y0, x1, y1;
+    if (!m_doc || !m_doc->getBoundingBox(x0, y0, x1, y1, true)) return;
+    const double pad = 0.15 * std::max({x1 - x0, y1 - y0, 1e-9});
+    zoomTo(x0 - pad, y0 - pad, x1 + pad, y1 + pad);
+}
+
 bool EditorWidget::event(QEvent *ev)
 {
     // Trackpad pinch zoom (macOS native gesture)
@@ -970,6 +1028,7 @@ void EditorWidget::keyPressEvent(QKeyEvent *event)
         case Qt::Key_T: setSketchTool(SketchTrim); return;
         case Qt::Key_O: setSketchTool(SketchOffset); return;
         case Qt::Key_D: setSketchTool(SketchDimension); return;
+        case Qt::Key_E: setSketchTool(SketchExtend); return;
         case Qt::Key_N: setEditAction(0); return;
         case Qt::Key_S: setEditAction(1); return;
         case Qt::Key_B: setEditAction(2); return;
@@ -980,7 +1039,8 @@ void EditorWidget::keyPressEvent(QKeyEvent *event)
 
     switch (event->key()) {
     case Qt::Key_Space:
-        openSelected();
+        // Opens the properties on release, unless it was used to pan
+        if (!event->isAutoRepeat()) { m_spaceDown = true; m_spacePanned = false; setCursor(Qt::OpenHandCursor); }
         break;
 
     case Qt::Key_Backspace:

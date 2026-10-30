@@ -390,7 +390,7 @@ void EditorWidget::drawToolOverlay(QPainter &p)
     if (!m_doc) return;
     if (m_sketchTool == SketchDimension) drawDimensions(p);
 
-    if ((m_sketchTool == SketchTrim || m_sketchTool == SketchDimension ||
+    if ((m_sketchTool == SketchTrim || m_sketchTool == SketchDimension || m_sketchTool == SketchExtend ||
          (m_sketchTool == SketchOffset && m_offsetChain.empty())) && m_hasCursor) {
         // Highlight the piece under the cursor
         bool isArc;
@@ -497,4 +497,102 @@ bool EditorWidget::toolKey(QKeyEvent *event)
         return true;
     }
     return false;
+}
+
+// ================================================================
+// Extend
+// ================================================================
+
+void EditorWidget::extendAt(double x, double y)
+{
+    bool isArc;
+    const int k = pickEdge(x, y, isArc);
+    if (k < 0 || isArc) { emit statusMessage(tr("Click near the end of a straight line.")); return; }
+    const auto seg = m_doc->linelist[k];
+    const auto &A = m_doc->nodelist[seg.n0], &B = m_doc->nodelist[seg.n1];
+    // The end nearer the click is the one that grows
+    const bool fromB = std::hypot(x - B.x, y - B.y) < std::hypot(x - A.x, y - A.y);
+    const QPointF e = fromB ? QPointF(B.x, B.y) : QPointF(A.x, A.y);
+    const QPointF o = fromB ? QPointF(A.x, A.y) : QPointF(B.x, B.y);
+    const QPointF dir = e - o;
+    const double L = std::hypot(dir.x(), dir.y());
+    if (L <= 0) return;
+    const QPointF u = dir / L;
+    const int endNode = fromB ? seg.n1 : seg.n0;
+
+    // Nearest hit of the ray e + t*u (t > 0) with any other line or arc
+    double best = 1e300;
+    for (int i = 0; i < (int)m_doc->linelist.size(); i++) {
+        if (i == k) continue;
+        const auto &s2 = m_doc->linelist[i];
+        if (s2.n0 == endNode || s2.n1 == endNode) continue;
+        const QPointF p(m_doc->nodelist[s2.n0].x, m_doc->nodelist[s2.n0].y), q(m_doc->nodelist[s2.n1].x, m_doc->nodelist[s2.n1].y);
+        const QPointF r = q - p;
+        const double den = u.x() * r.y() - u.y() * r.x();
+        if (std::abs(den) < 1e-14) continue;
+        const QPointF w = p - e;
+        const double t = (w.x() * r.y() - w.y() * r.x()) / den;
+        const double sp = (w.x() * u.y() - w.y() * u.x()) / den;
+        if (t > 1e-9 * L && sp >= -1e-9 && sp <= 1 + 1e-9) best = std::min(best, t);
+    }
+    for (const auto &a : m_doc->arclist) {
+        if (a.n0 == endNode || a.n1 == endNode) continue;
+        CComplex c; double R;
+        m_doc->GetCircle(a, c, R);
+        const QPointF f = e - QPointF(c.re, c.im);
+        const double bq = 2 * (f.x() * u.x() + f.y() * u.y()), cq = f.x() * f.x() + f.y() * f.y() - R * R;
+        const double disc = bq * bq - 4 * cq;
+        if (disc < 0) continue;
+        for (double t : {(-bq - std::sqrt(disc)) / 2, (-bq + std::sqrt(disc)) / 2}) {
+            if (t <= 1e-9 * L) continue;
+            // On the arc's sweep?
+            const QPointF hp = e + t * u;
+            const CComplex p0 = m_doc->nodelist[a.n0].CC();
+            const double a0 = std::atan2(p0.im - c.im, p0.re - c.re);
+            double ah = std::atan2(hp.y() - c.im, hp.x() - c.re) - a0;
+            while (ah < 0) ah += 2 * M_PI;
+            if (ah <= a.ArcLength * M_PI / 180 + 1e-9) best = std::min(best, t);
+        }
+    }
+    if (best >= 1e299) { emit statusMessage(tr("Nothing to extend to in that direction.")); return; }
+    m_doc->pushUndo();
+    auto &nd = m_doc->nodelist[endNode];
+    nd.x = e.x() + best * u.x();
+    nd.y = e.y() + best * u.y();
+    m_doc->EnforcePSLG();
+    invalidateMeshDisplay();
+    emit statusMessage(tr("Extended by %1.").arg(best));
+    update();
+}
+
+// ================================================================
+// Air around the model
+// ================================================================
+
+int EditorWidget::fillUnlabeledOutside(const QRectF &model, const std::string &material)
+{
+    if (!m_doc) return 0;
+    m_regions.update(*m_doc);
+    int filled = 0;
+    for (int f = 0; f < (int)m_regions.faces().size(); f++) {
+        const auto face = m_regions.faces()[f];
+        if (!face.labels.empty()) continue;
+        if (model.adjusted(-1e-9, -1e-9, 1e-9, 1e-9).contains(face.bbox)) continue;   // a hole of the model
+        // A point inside this region and in no smaller one
+        const QRectF b = face.bbox;
+        bool placed = false;
+        for (int i = 1; i < 40 && !placed; i++)
+            for (int j = 1; j < 40 && !placed; j++) {
+                const double px = b.left() + b.width() * i / 40.0, py = b.top() + b.height() * j / 40.0;
+                if (m_regions.faceAt(px, py) != f) continue;
+                if (m_doc->AddBlockLabel(px, py, 0.02 * std::max(b.width(), b.height()))) {
+                    m_doc->blocklist.back().BlockType = material;
+                    placed = true;
+                }
+            }
+        filled += placed;
+        m_regions.update(*m_doc);
+    }
+    update();
+    return filled;
 }

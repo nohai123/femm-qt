@@ -14,6 +14,7 @@
 #include <deque>
 #include <cmath>
 #include <cstring>
+#include <memory>
 
 // MSVC _strnicmp compatibility for POSIX
 #ifndef _WIN32
@@ -156,12 +157,21 @@ public:
     void undo();
     void redo();
     void clearUndoHistory();
+    // Removes the newest undo step again -- for an operation that turned out
+    // to change nothing (e.g. a property dialog closed without edits).
+    void dropLastUndo();
 
     // Bumped by pushUndo/undo/redo, i.e. by every user edit of the geometry.
     // The GUI compares it against the value at the last save to flag a
     // document as modified. (Property-only edits are caught on close by
     // comparing the serialized document against the file on disk.)
     unsigned long editSerial = 0;
+
+protected:
+    // Materials, boundary conditions, point properties and circuits, which
+    // each physics stores in its own types, so undo covers editing them too.
+    virtual std::shared_ptr<void> snapshotProperties() const { return nullptr; }
+    virtual void restoreProperties(const std::shared_ptr<void> &) {}
 
 private:
     static constexpr int MAX_UNDO_LEVELS = 50;
@@ -171,6 +181,7 @@ private:
         std::vector<FSegment> segs;
         std::vector<FArcSegment> arcs;
         std::vector<FBlockLabel> blocks;
+        std::shared_ptr<void> props;
     };
 
     GeometrySnapshot takeSnapshot() const;
@@ -179,5 +190,26 @@ private:
     std::deque<GeometrySnapshot> m_undoStack;
     std::deque<GeometrySnapshot> m_redoStack;
 };
+
+// Property snapshot shared by the four document types, which all name their
+// lists blockproplist / lineproplist / nodeproplist / circproplist.
+template<class D> struct FemmPropSnapshot {
+    decltype(D::blockproplist) b;
+    decltype(D::lineproplist) l;
+    decltype(D::nodeproplist) n;
+    decltype(D::circproplist) c;
+};
+template<class D> std::shared_ptr<void> femmSnapshotProps(const D &d)
+{
+    auto s = std::make_shared<FemmPropSnapshot<D>>();
+    s->b = d.blockproplist; s->l = d.lineproplist; s->n = d.nodeproplist; s->c = d.circproplist;
+    return s;
+}
+template<class D> void femmRestoreProps(D &d, const std::shared_ptr<void> &p)
+{
+    if (!p) return;
+    const auto *s = static_cast<const FemmPropSnapshot<D> *>(p.get());
+    d.blockproplist = s->b; d.lineproplist = s->l; d.nodeproplist = s->n; d.circproplist = s->c;
+}
 
 #endif // DOCUMENT_H

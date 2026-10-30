@@ -12,6 +12,7 @@
 #include <QLineEdit>
 #include <QStandardItemModel>
 #include <QRegularExpression>
+#include <QSettings>
 #include <cstdio>
 
 std::vector<LibraryMaterial> libraryMaterials(int physicsType)
@@ -65,7 +66,16 @@ MaterialPicker::MaterialPicker(QWidget *parent)
 
     connect(this, QOverload<int>::of(&QComboBox::activated), this, [this](int) {
         const QString n = currentMaterial();
-        if (!n.isEmpty()) emit materialChosen(n);
+        if (n.isEmpty()) return;
+        // Remember as recently used (per physics)
+        QSettings st;
+        const QString key = QStringLiteral("materials/recent%1").arg(m_physics);
+        QStringList r = st.value(key).toStringList();
+        r.removeAll(n);
+        r.prepend(n);
+        while (r.size() > 8) r.removeLast();
+        st.setValue(key, r);
+        emit materialChosen(n);
     });
 }
 
@@ -101,6 +111,17 @@ void MaterialPicker::setDocument(DocumentBase *doc)
         for (int i = 0; i < doc->numMaterials(); i++)
             inDoc << QString::fromStdString(doc->materialName(i));
     }
+    // Recently used, from the library, not yet in this model
+    const QStringList recent = QSettings().value(QStringLiteral("materials/recent%1").arg(physics)).toStringList();
+    QStringList recentShown;
+    for (const QString &n : recent) {
+        if (inDoc.contains(n)) continue;
+        for (const auto &lm : m_lib) if (lm.name == n) { recentShown << n; break; }
+    }
+    if (!recentShown.isEmpty()) {
+        addHeader(tr("— Recently used —"));
+        for (const QString &n : recentShown) addItem(n, n);
+    }
     if (!inDoc.isEmpty()) {
         addHeader(tr("— In this model —"));
         for (const QString &n : inDoc) addItem(n, n);
@@ -109,7 +130,7 @@ void MaterialPicker::setDocument(DocumentBase *doc)
     if (!m_lib.empty()) {
         addHeader(tr("— Library —"));
         for (const auto &lm : m_lib) {
-            if (inDoc.contains(lm.name)) continue;
+            if (inDoc.contains(lm.name) || recentShown.contains(lm.name)) continue;
             addItem(lm.name, lm.name);
             setItemData(count() - 1, lm.folder, Qt::ToolTipRole);
         }

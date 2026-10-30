@@ -1516,7 +1516,7 @@ void DocumentBase::RotateCopy(CComplex c, double t, int ncopies, int EditAction)
 
 DocumentBase::GeometrySnapshot DocumentBase::takeSnapshot() const
 {
-    return { nodelist, linelist, arclist, blocklist };
+    return { nodelist, linelist, arclist, blocklist, snapshotProperties() };
 }
 
 void DocumentBase::restoreSnapshot(const GeometrySnapshot &snap)
@@ -1525,6 +1525,14 @@ void DocumentBase::restoreSnapshot(const GeometrySnapshot &snap)
     linelist = snap.segs;
     arclist = snap.arcs;
     blocklist = snap.blocks;
+    if (snap.props) restoreProperties(snap.props);
+}
+
+void DocumentBase::dropLastUndo()
+{
+    if (m_undoStack.empty()) return;
+    m_undoStack.pop_back();
+    if (editSerial > 0) --editSerial;
 }
 
 void DocumentBase::pushUndo()

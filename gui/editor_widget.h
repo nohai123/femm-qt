@@ -45,6 +45,7 @@ public:
     void zoomOut();
     void zoomFit();
     void zoomTo(double x0, double y0, double x1, double y1);
+    void zoomSelection();   // fit the view to the selected objects
     void viewBounds(double &x0, double &y0, double &x1, double &y1) const;
     void zoomWindow();   // enter zoom-window mode
     void selectWindow(); // enter select-window mode
@@ -91,7 +92,8 @@ public:
                       SketchSelect,   // Select: click/drag to select, drag to move
                       SketchTrim,     // Trim: click a piece to delete it
                       SketchOffset,   // Offset: parallel copy of a contour
-                      SketchDimension };  // Dimension: show / set lengths and radii
+                      SketchDimension,  // Dimension: show / set lengths and radii
+                      SketchExtend };   // Extend: lengthen a line to the next edge
     void setSketchTool(int tool);
     int sketchTool() const { return m_sketchTool; }
 
@@ -111,6 +113,10 @@ public:
     void setEnsureMaterial(std::function<bool(const QString &)> fn) { m_ensureMaterial = std::move(fn); }
     // Preview of copies of the selection (Pattern dialog); empty = none
     void setGhosts(const std::vector<QTransform> &g) { m_ghosts = g; update(); }
+
+    // Gives every region without a label that is not inside `model` (the
+    // area the user drew) a label with `material`. Returns how many.
+    int fillUnlabeledOutside(const QRectF &model, const std::string &material);
 
     // Region bookkeeping, for the problem check before meshing
     RegionMap &regions();
@@ -142,6 +148,7 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    void keyReleaseEvent(QKeyEvent *event) override;
     bool focusNextPrevChild(bool next) override { (void)next; return false; }
     bool event(QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -202,6 +209,11 @@ private:
     bool offsetDistance(double &d) const;
     void offsetPress(double x, double y);
     void dimensionAt(double x, double y);
+    void extendAt(double x, double y);
+    // Space held: dragging pans; a Space tap still opens the properties
+    bool m_spaceDown = false, m_spacePanned = false;
+    // Alt-drag on a selected magnet label sets its magnetization direction
+    int m_magDirLabel = -1;
     void drawDimensions(QPainter &p);
     void drawToolOverlay(QPainter &p);
     bool toolKey(QKeyEvent *event);

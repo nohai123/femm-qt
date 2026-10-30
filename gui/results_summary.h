@@ -31,7 +31,11 @@ public:
 private:
     void rebuild();
 
+    void rebuildSelection();
     ResultsDoc *m_doc = nullptr;
+    QString m_selSig;
+    QLabel *m_selInfo;
+    QTableWidget *m_selTable;
     QDateTime m_stamp;
     QLabel *m_info;
     QTableWidget *m_table;

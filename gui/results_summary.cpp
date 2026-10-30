@@ -56,6 +56,20 @@ ResultsSummaryPanel::ResultsSummaryPanel(QWidget *parent)
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     lay->addWidget(m_table, 1);
 
+    // Values for the regions selected in Area mode
+    m_selInfo = new QLabel(tr("Area mode: click regions to see force, torque, energy and losses here."));
+    m_selInfo->setWordWrap(true);
+    m_selInfo->setStyleSheet("color: gray");
+    lay->addWidget(m_selInfo);
+    m_selTable = new QTableWidget(0, 2);
+    m_selTable->horizontalHeader()->hide();
+    m_selTable->verticalHeader()->hide();
+    m_selTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_selTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_selTable->horizontalHeader()->setStretchLastSection(true);
+    m_selTable->hide();
+    lay->addWidget(m_selTable);
+
     auto *row = new QHBoxLayout;
     auto *copy = new QPushButton(tr("Copy"));
     copy->setToolTip(tr("Copy the table as tab-separated text"));
@@ -82,10 +96,56 @@ void ResultsSummaryPanel::refresh(ResultsDoc *doc)
     QDateTime stamp;
     if (doc && !doc->filePath.empty())
         stamp = QFileInfo(QString::fromStdString(doc->filePath)).lastModified();
-    if (doc == m_doc && stamp == m_stamp) return;
-    m_doc = doc;
-    m_stamp = stamp;
-    rebuild();
+    if (doc != m_doc || stamp != m_stamp) {
+        m_doc = doc;
+        m_stamp = stamp;
+        m_selSig.clear();
+        rebuild();
+    }
+    rebuildSelection();
+}
+
+void ResultsSummaryPanel::rebuildSelection()
+{
+    QString sig;
+    if (m_doc)
+        for (int i = 0; i < (int)m_doc->labellist.size(); i++)
+            if (m_doc->labellist[i].IsSelected) sig += QString::number(i) + ",";
+    if (sig == m_selSig) return;
+    m_selSig = sig;
+    if (sig.isEmpty()) { m_selTable->hide(); m_selInfo->show(); return; }
+
+    // The integrals people ask for first; stress-tensor force and torque
+    // are the robust ones for a part surrounded by air
+    struct Q { int type; const char *name; const char *unit; };
+    const Q qs[] = {
+        {18, QT_TR_NOOP("Force x (stress tensor)"), "N"},
+        {19, QT_TR_NOOP("Force y (stress tensor)"), "N"},
+        {22, QT_TR_NOOP("Torque (stress tensor)"), "N\u00b7m"},
+        {2, QT_TR_NOOP("Field energy"), "J"},
+        {6, QT_TR_NOOP("Total losses"), "W"},
+        {7, QT_TR_NOOP("Total current"), "A"},
+        {5, QT_TR_NOOP("Cross-section area"), "m\u00b2"},
+    };
+    const bool axi = m_doc->ProblemType == 1;
+    m_selTable->setRowCount(0);
+    for (const Q &q : qs) {
+        if (axi && (q.type == 18 || q.type == 22)) continue;   // no r force / torque in axisymmetry
+        const CComplex v = m_doc->BlockIntegral(q.type);
+        if (m_doc->maskSelectionInvalid && (q.type >= 18 && q.type <= 23)) continue;
+        QString name = tr(q.name);
+        if (axi && q.type == 19) name = tr("Force z (stress tensor)");
+        const int r = m_selTable->rowCount();
+        m_selTable->insertRow(r);
+        m_selTable->setItem(r, 0, new QTableWidgetItem(name));
+        auto *it = new QTableWidgetItem(QStringLiteral("%1 %2").arg(val(v, m_doc->BlockIntegralIsComplex(q.type)),
+                                                                  QString::fromUtf8(q.unit)));
+        it->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        m_selTable->setItem(r, 1, it);
+    }
+    m_selInfo->setText(tr("Selected regions:"));
+    m_selInfo->show();
+    m_selTable->show();
 }
 
 void ResultsSummaryPanel::rebuild()

@@ -48,6 +48,10 @@ public:
 
     // Clear document to new state
     void NewDocument();
+
+protected:
+    std::shared_ptr<void> snapshotProperties() const override { return femmSnapshotProps(*this); }
+    void restoreProperties(const std::shared_ptr<void> &p) override { femmRestoreProps(*this, p); }
 };
 
 #endif // HEAT_DOCUMENT_H

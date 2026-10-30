@@ -438,6 +438,15 @@ private slots:
         QCOMPARE(t->rowCount(), (int)rd.circproplist.size());
         for (int k = 0; k < t->rowCount(); k++)
             QCOMPARE(t->item(k, 0)->text(), QString::fromStdString(rd.circproplist[k].CircName));
+        // Regions selected in Area mode get their own table
+        rd.labellist[0].IsSelected = true;
+        panel.refresh(&rd);
+        QTableWidget *sel = nullptr;
+        for (auto *tw : panel.findChildren<QTableWidget *>()) if (tw != t) sel = tw;
+        QVERIFY(sel && sel->rowCount() >= 4);
+        rd.labellist[0].IsSelected = false;
+        panel.refresh(&rd);
+        QVERIFY(sel->isHidden());
         panel.refresh(nullptr);
         QCOMPARE(t->rowCount(), 0);
     }
@@ -704,6 +713,77 @@ private slots:
         QVERIFY(dock.windowTitle().contains("|B|"));
         const QString dir = qEnvironmentVariable("FEMM_GUI_TEST_SHOTS");
         if (!dir.isEmpty()) QFile::copy(pdf, dir + "/report.pdf");
+    }
+
+    void extendToNextLine()
+    {
+        ed->setSketchTool(EditorWidget::SketchLine);
+        click(0, 1); click(1, 1); QTest::keyClick(ed, Qt::Key_Escape);   // short line
+        click(3, 0); click(3, 2); QTest::keyClick(ed, Qt::Key_Escape);   // wall
+        ed->setSketchTool(EditorWidget::SketchExtend);
+        click(0.9, 1.0);
+        QVERIFY(findNode(3, 1) >= 0);              // reaches the wall
+        QVERIFY(findNode(1, 1) < 0);
+    }
+
+    void spaceDragPansSpaceTapOpens()
+    {
+        double a0, b0, a1, b1;
+        ed->viewBounds(a0, b0, a1, b1);
+        QTest::keyPress(ed, Qt::Key_Space);
+        drag(2, 2, 3, 2);
+        QTest::keyRelease(ed, Qt::Key_Space);
+        double c0, d0, c1, d1;
+        ed->viewBounds(c0, d0, c1, d1);
+        QVERIFY2(c0 < a0 - 0.5, "view moved with the drag");
+        QVERIFY(std::abs((c1 - c0) - (a1 - a0)) < 1e-9);
+    }
+
+    void altDragPointsMagnet()
+    {
+        FMaterialProp mag; mag.BlockName = "N42"; mag.H_c = 900000;
+        doc->blockproplist.push_back(mag);
+        doc->AddBlockLabel(2, 2, 1e-3);
+        doc->blocklist[0].BlockType = "N42";
+        drag(2, 2, 2, 3.5, Qt::AltModifier);
+        QVERIFY2(std::abs(doc->blocklist[0].MagDir - 90.0) < 1.0, qPrintable(QString::number(doc->blocklist[0].MagDir)));
+        doc->undo();
+        QCOMPARE(doc->blocklist[0].MagDir, 0.0);
+    }
+
+    void airFillsSpaceAroundModel()
+    {
+        ed->setSketchTool(EditorWidget::SketchRect);
+        click(1.5, 1.5); click(2.5, 2.5);                     // the model
+        ed->setSketchTool(EditorWidget::SketchCircle);
+        click(2, 2); click(4, 2);                              // a "shell" around it
+        const int n = ed->fillUnlabeledOutside(QRectF(1.5, 1.5, 1, 1), "Air");
+        QCOMPARE(n, 1);                                        // the annulus, not the model
+        QCOMPARE(QString::fromStdString(doc->blocklist[0].BlockType), QString("Air"));
+        QVERIFY(ed->regions().faceAt(doc->blocklist[0].x, doc->blocklist[0].y) == 0);   // the big face
+    }
+
+    void undoCoversProperties()
+    {
+        doc->pushUndo();
+        FMaterialProp m; m.BlockName = "Steel"; m.mu_x = 1000;
+        doc->blockproplist.push_back(m);
+        FCircuit c; c.CircName = "coil"; c.Amps = CComplex(2, 0);
+        doc->circproplist.push_back(c);
+        doc->pushUndo();
+        doc->blockproplist[0].mu_x = 5;
+        doc->undo();
+        QCOMPARE(doc->blockproplist[0].mu_x, 1000.0);   // property edit undone
+        doc->undo();
+        QCOMPARE((int)doc->blockproplist.size(), 0);    // and the additions
+        QCOMPARE((int)doc->circproplist.size(), 0);
+        doc->redo();
+        QCOMPARE((int)doc->circproplist.size(), 1);
+        // A step that changed nothing can be dropped again
+        const auto serial = doc->editSerial;
+        doc->pushUndo();
+        doc->dropLastUndo();
+        QCOMPARE(doc->editSerial, serial);
     }
 
     void commandPaletteFindsAndRuns()

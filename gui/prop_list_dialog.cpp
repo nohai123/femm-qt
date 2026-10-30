@@ -19,11 +19,33 @@
 #include <QHBoxLayout>
 #include <QDialogButtonBox>
 #include <QMessageBox>
+#include <QTemporaryFile>
+#include <QDir>
+#include <QFile>
 #include "mouse_release_gate.h"
+
+// The whole document as it would be saved: compared before and after so a
+// dialog closed without edits leaves no empty undo step behind.
+static QByteArray serialized(DocumentBase *doc)
+{
+    QTemporaryFile tmp(QDir::tempPath() + "/femm_props_XXXXXX" + QString::fromStdString(doc->fileExtension()));
+    if (!tmp.open()) return QByteArray();
+    tmp.close();
+    if (!doc->SaveDocument(tmp.fileName().toStdString())) return QByteArray();
+    QFile f(tmp.fileName());
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+PropertyListDialog::~PropertyListDialog()
+{
+    if (m_doc && serialized(m_doc) == m_before) m_doc->dropLastUndo();
+}
 
 PropertyListDialog::PropertyListDialog(DocumentBase *doc, int propType, QWidget *parent)
     : QDialog(parent), m_doc(doc), m_propType(propType)
 {
+    m_doc->pushUndo();
+    m_before = serialized(m_doc);
     static const char *titles[] = {
         "Point Properties", "Boundary Conditions", "Materials", "Circuits"
     };

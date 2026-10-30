@@ -7,6 +7,7 @@
 #define PROP_LIST_DIALOG_H
 
 #include <QDialog>
+#include <QByteArray>
 #include <QListWidget>
 #include <QPushButton>
 #include <functional>
@@ -22,6 +23,8 @@ class PropertyListDialog : public QDialog
 public:
     // propType: 0=PointProps, 1=Boundaries, 2=Materials, 3=Circuits
     PropertyListDialog(DocumentBase *doc, int propType, QWidget *parent = nullptr);
+    // One undo step for whatever was edited here (none if nothing changed)
+    ~PropertyListDialog() override;
 
 private slots:
     void onAdd();
@@ -29,6 +32,8 @@ private slots:
     void onModify();
 
 private:
+    QByteArray m_before;   // the document as saved before any edit
+
     void populateList();
     // Opens the appropriate editor dialog. Returns true if accepted.
     bool openEditor(int index);  // -1 for new

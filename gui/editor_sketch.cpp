@@ -38,6 +38,7 @@
 #include "view_colors.h"
 #include <QKeyEvent>
 #include <QDialog>
+#include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QVBoxLayout>
@@ -151,6 +152,9 @@ void EditorWidget::emitSketchHint()
         break;
     case SketchOffset:
         h = tr("Offset: click a contour, then move to the side and click -- or type the distance + Enter.");
+        break;
+    case SketchExtend:
+        h = tr("Extend: click near the end of a line to lengthen it to the next line or arc.");
         break;
     case SketchDimension:
         h = tr("Dimension: click a line to set its length, an arc or circle to set its radius.");
@@ -318,6 +322,9 @@ void EditorWidget::sketchPress(double x, double y, int snapKind)
         return;
     case SketchDimension:
         dimensionAt(m_mx, m_my);
+        return;
+    case SketchExtend:
+        extendAt(m_mx, m_my);
         return;
     case SketchLine: {
         if (m_sketchPts.empty()) {
@@ -487,8 +494,23 @@ bool EditorWidget::askPoint(const QString &title, double &x, double &y)
     auto *layout = new QVBoxLayout(&dlg);
     layout->addLayout(form);
     layout->addWidget(buttons);
+    // Relative to the previous point of the shape being drawn
+    QCheckBox *rel = nullptr;
+    if (!m_sketchPts.empty()) {
+        rel = new QCheckBox(tr("Relative to the last point (dx, dy)"));
+        form->addRow(rel);
+        QObject::connect(rel, &QCheckBox::toggled, &dlg, [xEdit, yEdit](bool on) {
+            if (on) { xEdit->setText("0"); yEdit->setText("0"); xEdit->selectAll(); xEdit->setFocus(); }
+        });
+    }
     xEdit->setFocus();
     if (dlg.exec() != QDialog::Accepted) return false;
+    if (rel && rel->isChecked()) {
+        const QPointF last = m_sketchPts.back();
+        x = last.x() + xEdit->evaluateAsDouble(0);
+        y = last.y() + yEdit->evaluateAsDouble(0);
+        return true;
+    }
     coorddisp::fromDisplay(coords, xEdit->evaluateAsDouble(c1), yEdit->evaluateAsDouble(c2), x, y);
     return true;
 }

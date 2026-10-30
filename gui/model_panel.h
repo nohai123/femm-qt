@@ -64,6 +64,9 @@ private:
     QSpinBox *m_labelTurns;
     QLabel *m_turnsLabel;
     QLabel *m_circuitLabel;
+    class QSlider *m_meshSlider;
+    QLabel *m_meshInfo;
+    double modelSize() const;
     // Segment/arc page
     QComboBox *m_segBoundary;
     // Node page
