@@ -11,6 +11,7 @@ set(FEMM_GUI_SOURCES
     editor_sketch.cpp
     region_map.cpp
     material_picker.cpp
+    problem_check.cpp
     mouse_release_gate.cpp
     results_widget.cpp
     scalar_results_widget.cpp

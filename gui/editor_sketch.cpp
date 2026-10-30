@@ -753,7 +753,13 @@ void EditorWidget::drawRegions(QPainter &p)
     p.save();
     p.setPen(Qt::NoPen);
     QMap<QString, QColor> legend;
-    for (const auto &f : faces) {
+    // A "default" label supplies the material of every region without one.
+    int defaultLabel = -1;
+    for (int i = 0; i < (int)m_doc->blocklist.size(); i++)
+        if (m_doc->blocklist[i].IsDefault) defaultLabel = i;
+    for (const auto &f0 : faces) {
+        auto f = f0;
+        if (f.labels.empty() && defaultLabel >= 0) f.labels.push_back(defaultLabel);
         QPolygonF sp;
         sp.reserve(f.poly.size());
         for (const QPointF &pt : f.poly) sp << toScreen(pt.x(), pt.y());

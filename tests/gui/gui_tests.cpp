@@ -9,6 +9,7 @@
 
 #include "editor_widget.h"
 #include "mag_document.h"
+#include "problem_check.h"
 
 #include <QApplication>
 #include <QtTest/QtTest>
@@ -267,6 +268,43 @@ private slots:
         QCOMPARE((int)faces[1].labels.size(), 1);
         doc->undo();                            // the reassignment is undoable
         QCOMPARE((int)doc->blocklist.size(), 2);
+    }
+
+    void problemCheckFindsIssues()
+    {
+        // Empty model
+        auto is = checkProblem(ed);
+        QCOMPARE((int)is.size(), 1);
+        QCOMPARE(is[0].severity, ProblemIssue::Error);
+
+        buildSquareWithCircle();   // two regions, no labels, one dangling line
+        is = checkProblem(ed);
+        int err = 0, warn = 0;
+        for (auto &i : is) { err += i.severity == ProblemIssue::Error; warn += i.severity == ProblemIssue::Warning; }
+        QCOMPARE(err, 2);          // two unlabelled regions
+        QCOMPARE(warn, 1);         // the open line end
+
+        // Label both regions; one without material, one doubled
+        doc->AddBlockLabel(0.5, 0.5, 1e-3);
+        doc->blocklist.back().BlockType = "Air";
+        doc->AddBlockLabel(2.2, 2.2, 1e-3);          // <None>
+        doc->AddBlockLabel(1.8, 1.8, 1e-3);
+        doc->blocklist.back().BlockType = "Air";
+        is = checkProblem(ed);
+        QStringList texts;
+        for (auto &i : is) if (i.severity == ProblemIssue::Error) texts << i.text;
+        QCOMPARE(texts.size(), 2);
+        QVERIFY(texts.join("|").contains("2 block labels"));
+        QVERIFY(texts.join("|").contains("no material"));
+
+        // A default label covers unlabelled regions
+        cleanup(); init();
+        buildSquareWithCircle();
+        doc->AddBlockLabel(0.5, 0.5, 1e-3);
+        doc->blocklist.back().BlockType = "Air";
+        doc->blocklist.back().IsDefault = true;
+        is = checkProblem(ed);
+        for (auto &i : is) QVERIFY(i.severity != ProblemIssue::Error);
     }
 
     // Not a check: with FEMM_GUI_TEST_SHOTS=<dir> set, saves pictures of the

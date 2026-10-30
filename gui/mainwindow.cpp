@@ -86,6 +86,7 @@
 #include "py_line_edit.h"
 #include "dxf_io.h"
 #include "material_picker.h"
+#include "problem_check.h"
 
 static bool femmOpenable(const QString &path);
 
@@ -1466,6 +1467,9 @@ void MainWindow::onAnalyze()
 {
     auto *e = activeEditor();
     if (!e || !e->document()) return;
+    // Find missing materials, unlabelled regions etc. before meshing, with a
+    // way to jump to each.
+    if (!confirmProblemCheck(this, e)) { e->update(); return; }
     if (e->document()->filePath.empty()) { onSaveAs(); if (e->document()->filePath.empty()) return; }
     updateStatus("Running analysis...");
     char errmsg[1024] = {};
@@ -1485,6 +1489,7 @@ void MainWindow::onAnalyze()
             QMessageBox::warning(this, tr("Analysis Failed"), QString::fromUtf8(errmsg));
     } else {
         updateStatus("Analysis complete");
+        e->setProperty("femmAnalyzedSerial", QVariant::fromValue<qulonglong>(e->document()->editSerial));
         // One click from model to results: open (or reload) the solution
         // instead of making the user press View Results as a second step.
         if (QSettings().value("analysis/autoShowResults", true).toBool())
@@ -2978,6 +2983,27 @@ bool MainWindow::confirmDiscard(QMdiSubWindow *sub)
 
 void MainWindow::refreshModifiedMarks()
 {
+    // Results tabs whose model has been edited since it was analysed say so.
+    static const QString outdated = tr(" (outdated)");
+    QHash<QString, bool> stale;   // model base name -> edited since analysis
+    for (auto *sub : m_mdiArea->subWindowList()) {
+        auto *editor = qobject_cast<EditorWidget *>(sub->widget());
+        if (!editor || !editor->document() || editor->document()->filePath.empty()) continue;
+        const QVariant v = editor->property("femmAnalyzedSerial");
+        if (!v.isValid()) continue;
+        const QString base = QFileInfo(QString::fromStdString(editor->document()->filePath)).completeBaseName();
+        stale[base] = stale.value(base) || v.toULongLong() != editor->document()->editSerial;
+    }
+    for (auto *sub : m_mdiArea->subWindowList()) {
+        if (qobject_cast<EditorWidget *>(sub->widget())) continue;
+        QString title = sub->windowTitle();
+        const bool marked = title.endsWith(outdated);
+        const QString base = marked ? title.left(title.size() - outdated.size()) : title;
+        const bool isStale = stale.value(QFileInfo(base).completeBaseName(), false);
+        if (isStale && !marked) sub->setWindowTitle(base + outdated);
+        else if (!isStale && marked) sub->setWindowTitle(base);
+    }
+
     static const QString mark = QStringLiteral(" •");
     for (auto *sub : m_mdiArea->subWindowList()) {
         auto *editor = qobject_cast<EditorWidget *>(sub->widget());
