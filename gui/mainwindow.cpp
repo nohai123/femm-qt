@@ -92,6 +92,7 @@
 #include "welcome_page.h"
 #include "view_colors.h"
 #include "command_palette.h"
+#include "sweep_dialog.h"
 #include <QStackedWidget>
 #include <QLockFile>
 #include <QStandardPaths>
@@ -2222,6 +2223,19 @@ void MainWindow::createPreprocessorUI()
     m_preMenuAnalysis = menuBar()->addMenu(tr("&Analysis"));
     m_preMenuAnalysis->addAction(tr("&Analyze"), QKeySequence(), this, &MainWindow::onAnalyze);
     m_preMenuAnalysis->addAction(tr("&View Results"), QKeySequence(), this, &MainWindow::onViewResults);
+    m_preMenuAnalysis->addSeparator();
+    m_preMenuAnalysis->addAction(tr("Parameter &Sweep..."), QKeySequence(), [this]() {
+        auto *e = activeEditor();
+        if (!e || !e->document()) return;
+        if (e->document()->physicsType() != 0) {
+            QMessageBox::information(this, tr("Parameter Sweep"),
+                tr("Parameter sweeps are available for magnetics problems."));
+            return;
+        }
+        if (e->document()->filePath.empty()) { onSaveAs(); if (e->document()->filePath.empty()) return; }
+        SweepDialog dlg(e, this);
+        dlg.exec();
+    });
 
     // --- Top toolbar 1: File ---
     m_preTopBar1 = addToolBar(tr("File"));

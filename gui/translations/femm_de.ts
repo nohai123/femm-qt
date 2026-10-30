@@ -2434,6 +2434,18 @@ Wiederherstellen?</translation>
         <source>The new language is used from the next start of FEMM.</source>
         <translation>Die neue Sprache wird beim nächsten Start von FEMM verwendet.</translation>
     </message>
+    <message>
+        <source>Parameter &amp;Sweep...</source>
+        <translation>Parameter&amp;studie…</translation>
+    </message>
+    <message>
+        <source>Parameter Sweep</source>
+        <translation>Parameterstudie</translation>
+    </message>
+    <message>
+        <source>Parameter sweeps are available for magnetics problems.</source>
+        <translation>Parameterstudien gibt es für Magnetik-Probleme.</translation>
+    </message>
 </context>
 <context>
     <name>MatLibDialog</name>
@@ -4020,6 +4032,133 @@ ersten Ansicht ausgewählt.</translation>
     <message>
         <source>--- Solver aborted by user ---</source>
         <translation>--- Löser vom Benutzer abgebrochen ---</translation>
+    </message>
+</context>
+<context>
+    <name>SweepDialog</name>
+    <message>
+        <source>Parameter Sweep</source>
+        <translation>Parameterstudie</translation>
+    </message>
+    <message>
+        <source>Vary</source>
+        <translation>Variieren</translation>
+    </message>
+    <message>
+        <source>Circuit current</source>
+        <translation>Stromkreisstrom</translation>
+    </message>
+    <message>
+        <source>Position of a group</source>
+        <translation>Position einer Gruppe</translation>
+    </message>
+    <message>
+        <source>Parameter:</source>
+        <translation>Parameter:</translation>
+    </message>
+    <message>
+        <source>Circuit:</source>
+        <translation>Stromkreis:</translation>
+    </message>
+    <message>
+        <source>Objects to move: give them a group number in their properties</source>
+        <translation>Zu verschiebende Objekte: in ihren Eigenschaften eine Gruppennummer vergeben</translation>
+    </message>
+    <message>
+        <source>Group:</source>
+        <translation>Gruppe:</translation>
+    </message>
+    <message>
+        <source>Direction:</source>
+        <translation>Richtung:</translation>
+    </message>
+    <message>
+        <source>From:</source>
+        <translation>Von:</translation>
+    </message>
+    <message>
+        <source>To:</source>
+        <translation>Bis:</translation>
+    </message>
+    <message>
+        <source>Steps:</source>
+        <translation>Schritte:</translation>
+    </message>
+    <message>
+        <source>Results</source>
+        <translation>Ergebnisse</translation>
+    </message>
+    <message>
+        <source>Inductance</source>
+        <translation>Induktivität</translation>
+    </message>
+    <message>
+        <source>Flux linkage</source>
+        <translation>Flussverkettung</translation>
+    </message>
+    <message>
+        <source>Force/torque on group:</source>
+        <translation>Kraft/Moment auf Gruppe:</translation>
+    </message>
+    <message>
+        <source>Force %1</source>
+        <translation>Kraft %1</translation>
+    </message>
+    <message>
+        <source>Torque</source>
+        <translation>Drehmoment</translation>
+    </message>
+    <message>
+        <source>Each step is meshed and solved; Esc stops.</source>
+        <translation>Jeder Schritt wird vernetzt und gelöst; Esc bricht ab.</translation>
+    </message>
+    <message>
+        <source>Run Sweep</source>
+        <translation>Studie starten</translation>
+    </message>
+    <message>
+        <source>Copy Table</source>
+        <translation>Tabelle kopieren</translation>
+    </message>
+    <message>
+        <source>Current [A]</source>
+        <translation>Strom [A]</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Position</translation>
+    </message>
+    <message>
+        <source>Inductance [H]</source>
+        <translation>Induktivität [H]</translation>
+    </message>
+    <message>
+        <source>Flux linkage [Wb]</source>
+        <translation>Flussverkettung [Wb]</translation>
+    </message>
+    <message>
+        <source>Torque [N·m]</source>
+        <translation>Drehmoment [N·m]</translation>
+    </message>
+    <message>
+        <source>The model has no circuit to vary.</source>
+        <translation>Das Modell hat keinen Stromkreis, der variiert werden kann.</translation>
+    </message>
+    <message>
+        <source>Save the model first -- each step is solved from its file.</source>
+        <translation>Zuerst das Modell speichern – jeder Schritt wird aus der Datei gelöst.</translation>
+    </message>
+    <message>
+        <source>Running %1 steps… (Esc stops)</source>
+        <translation>%1 Schritte laufen… (Esc bricht ab)</translation>
+    </message>
+    <message>
+        <source>Stopped after %1 of %2 steps: %3</source>
+        <translation>Nach %1 von %2 Schritten abgebrochen: %3</translation>
+    </message>
+    <message>
+        <source>Done: %1 steps.</source>
+        <translation>Fertig: %1 Schritte.</translation>
     </message>
 </context>
 <context>

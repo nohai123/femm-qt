@@ -19,6 +19,16 @@
 #include "view_colors.h"
 #include <QSettings>
 #include <QTranslator>
+#include "sweep_dialog.h"
+#include "py_state.h"
+#include <QProcess>
+#include <QTemporaryDir>
+#include "script_callbacks.h"
+#include "py_mag_editor.h"
+#include <QPushButton>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QTableWidget>
 #include <QMenuBar>
 #include <QLineEdit>
 #include <QListWidget>
@@ -518,6 +528,48 @@ private slots:
             dlg.grab().save(dir + "/new_problem_de.png");
         }
         QCoreApplication::removeTranslator(&tr);
+    }
+
+    // Runs the script the sweep dialog writes in the real engine.
+    // Needs FEMM_GUI_TEST_SWEEP=<model.fem with circuit "coil" and a linear
+    // core> and FEMM_GUI_TEST_HEADLESS=<femm_headless>.
+    void sweepScriptGivesConstantInductance()
+    {
+        const QString model = qEnvironmentVariable("FEMM_GUI_TEST_SWEEP");
+        const QString headless = qEnvironmentVariable("FEMM_GUI_TEST_HEADLESS");
+        if (model.isEmpty() || headless.isEmpty()) QSKIP("FEMM_GUI_TEST_SWEEP / _HEADLESS not set");
+        auto *mdoc = new MagDocument;
+        QVERIFY(mdoc->OpenDocument(model.toStdString()));
+        auto *e2 = new EditorWidget(mdoc);
+        SweepDialog dlg(e2);
+        dlg.findChild<QLineEdit *>("sweepFrom")->setText("1");
+        dlg.findChild<QLineEdit *>("sweepTo")->setText("3");
+        dlg.findChild<QSpinBox *>("sweepSteps")->setValue(3);
+        QTemporaryDir tmp;
+        const QString csv = tmp.filePath("out.csv"), py = tmp.filePath("sweep.py");
+        const QString body = dlg.script(csv);
+        QVERIFY(!body.isEmpty());
+        QCOMPARE(dlg.columns().size(), 2);
+        QFile f(py);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(("opendocument('" + model + "')\n" + body).toUtf8());
+        f.close();
+        QProcess proc;
+        proc.start(headless, {"-run", py});
+        QVERIFY(proc.waitForFinished(300000));
+        QFile out(csv);
+        QVERIFY(out.open(QIODevice::ReadOnly));
+        const QStringList lines = QString::fromUtf8(out.readAll()).trimmed().split('\n');
+        QCOMPARE(lines.size(), 3);
+        double L[3];
+        for (int i = 0; i < 3; i++) {
+            const QStringList p = lines[i].split(',');
+            QCOMPARE(p[0].toDouble(), 1.0 + i);
+            L[i] = p[1].toDouble();
+        }
+        QVERIFY2(L[0] > 1e-4 && L[0] < 1e-2, qPrintable(QString::number(L[0])));
+        QVERIFY(std::abs(L[2] - L[0]) < 1e-6 * L[0]);    // linear core
+        delete e2;
     }
 
     void commandPaletteFindsAndRuns()
