@@ -787,6 +787,34 @@
         <source>Radius set to %1.</source>
         <translation>Radius auf %1 gesetzt.</translation>
     </message>
+    <message>
+        <source>Extend: click near the end of a line to lengthen it to the next line or arc.</source>
+        <translation>Verlängern: nahe dem Ende einer Linie klicken, um sie bis zur nächsten Linie oder zum nächsten Bogen zu verlängern.</translation>
+    </message>
+    <message>
+        <source>Relative to the last point (dx, dy)</source>
+        <translation>Relativ zum letzten Punkt (dx, dy)</translation>
+    </message>
+    <message>
+        <source>Click near the end of a straight line.</source>
+        <translation>Nahe dem Ende einer geraden Linie klicken.</translation>
+    </message>
+    <message>
+        <source>Nothing to extend to in that direction.</source>
+        <translation>In dieser Richtung gibt es nichts zum Verlängern.</translation>
+    </message>
+    <message>
+        <source>Extended by %1.</source>
+        <translation>Um %1 verlängert.</translation>
+    </message>
+    <message>
+        <source>Drag to point the magnetization; Shift snaps to 15 degrees.</source>
+        <translation>Ziehen, um die Magnetisierung auszurichten; Shift rastet in 15°-Schritten.</translation>
+    </message>
+    <message>
+        <source>Magnetization direction: %1°</source>
+        <translation>Magnetisierungsrichtung: %1°</translation>
+    </message>
 </context>
 <context>
     <name>ElecBoundaryEditorDialog</name>
@@ -2745,6 +2773,54 @@ Wiederherstellen?</translation>
         <source>Zoom to Fit</source>
         <translation>Alles zeigen</translation>
     </message>
+    <message>
+        <source>Zoom to &amp;Selection</source>
+        <translation>Auf &amp;Auswahl zoomen</translation>
+    </message>
+    <message>
+        <source>Na&amp;vigation</source>
+        <translation>Na&amp;vigation</translation>
+    </message>
+    <message>
+        <source>&amp;Air Space Around Model</source>
+        <translation>&amp;Luftraum um das Modell</translation>
+    </message>
+    <message>
+        <source>Surround the model with an open boundary and fill the space with air -- for fields in free space</source>
+        <translation>Das Modell mit einem offenen Rand umgeben und den Raum mit Luft füllen – für Felder im freien Raum</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>Verlängern</translation>
+    </message>
+    <message>
+        <source>Extend (E) -- lengthen a line to the next line or arc</source>
+        <translation>Verlängern (E) – eine Linie bis zur nächsten Linie oder zum nächsten Bogen verlängern</translation>
+    </message>
+    <message>
+        <source>&amp;Extend</source>
+        <translation>&amp;Verlängern</translation>
+    </message>
+    <message>
+        <source>Air Space</source>
+        <translation>Luftraum</translation>
+    </message>
+    <message>
+        <source>Open boundaries are available for magnetics, electrostatics and heat flow.</source>
+        <translation>Offene Ränder gibt es für Magnetik, Elektrostatik und Wärmeleitung.</translation>
+    </message>
+    <message>
+        <source>Draw the model first.</source>
+        <translation>Zuerst das Modell zeichnen.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Open boundary added; %n region(s) filled with air.</source>
+        <translation><numerusform>Offener Rand hinzugefügt; %n Bereich mit Luft gefüllt.</numerusform><numerusform>Offener Rand hinzugefügt; %n Bereiche mit Luft gefüllt.</numerusform></translation>
+    </message>
+    <message>
+        <source>Zoom to Selection</source>
+        <translation>Auf Auswahl zoomen</translation>
+    </message>
 </context>
 <context>
     <name>MatLibDialog</name>
@@ -2978,6 +3054,10 @@ Ihre Änderungen an der Bibliothek wurden NICHT gespeichert. Die Datei ist evtl.
         <source>Other (LamType %1)</source>
         <translation>Sonstige (LamType %1)</translation>
     </message>
+    <message>
+        <source>B-H Curve</source>
+        <translation>B-H-Kurve</translation>
+    </message>
 </context>
 <context>
     <name>MaterialPicker</name>
@@ -2996,6 +3076,10 @@ Ihre Änderungen an der Bibliothek wurden NICHT gespeichert. Die Datei ist evtl.
     <message>
         <source>— Library —</source>
         <translation>— Bibliothek —</translation>
+    </message>
+    <message>
+        <source>— Recently used —</source>
+        <translation>— Zuletzt verwendet —</translation>
     </message>
 </context>
 <context>
@@ -3103,6 +3187,22 @@ Ihre Änderungen an der Bibliothek wurden NICHT gespeichert. Die Datei ist evtl.
             <numerusform>%n Knoten ausgewählt</numerusform>
             <numerusform>%n Knoten ausgewählt</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Element size in this region: left = automatic, further right = finer mesh</source>
+        <translation>Elementgröße in diesem Bereich: links = automatisch, weiter rechts = feineres Netz</translation>
+    </message>
+    <message>
+        <source>Mesh:</source>
+        <translation>Netz:</translation>
+    </message>
+    <message>
+        <source>element size about %1</source>
+        <translation>Elementgröße ca. %1</translation>
+    </message>
+    <message>
+        <source>automatic</source>
+        <translation>automatisch</translation>
     </message>
 </context>
 <context>
@@ -3737,6 +3837,42 @@ Ihre Änderungen an der Bibliothek wurden NICHT gespeichert. Die Datei ist evtl.
         <source>Solution Files (*.ans *.res);;All Files (*)</source>
         <translation>Lösungsdateien (*.ans *.res);;Alle Dateien (*)</translation>
     </message>
+    <message>
+        <source>Frequency of the currents in Hz. 0 = DC/static (magnetics). Above 0 the problem is solved as AC (eddy currents, skin effect).</source>
+        <translation>Frequenz der Ströme in Hz. 0 = Gleichstrom/statisch (Magnetik). Über 0 wird das Problem als AC gelöst (Wirbelströme, Skineffekt).</translation>
+    </message>
+    <message>
+        <source>Unit of all coordinates and lengths you draw.</source>
+        <translation>Einheit aller gezeichneten Koordinaten und Längen.</translation>
+    </message>
+    <message>
+        <source>Planar: a cross-section of something long (depth into the page). Axisymmetric: a body of revolution; x is the radius r &gt;= 0, y the axis z.</source>
+        <translation>Eben: Querschnitt durch etwas Langes (Tiefe in die Bildebene). Axialsymmetrisch: ein Rotationskörper; x ist der Radius r &gt;= 0, y die Achse z.</translation>
+    </message>
+    <message>
+        <source>Stopping tolerance of the linear solver. 1e-8 is a good default; smaller is slower and rarely needed.</source>
+        <translation>Abbruchtoleranz des linearen Lösers. 1e-8 ist ein guter Standard; kleiner ist langsamer und selten nötig.</translation>
+    </message>
+    <message>
+        <source>Planar problems: length of the model into the page, in the length units. Forces, energies and inductances scale with it.</source>
+        <translation>Ebene Probleme: Länge des Modells in die Bildebene, in der Längeneinheit. Kräfte, Energien und Induktivitäten skalieren damit.</translation>
+    </message>
+    <message>
+        <source>Smallest allowed angle in a mesh triangle (degrees). 30 gives good-quality meshes; up to about 33 is possible.</source>
+        <translation>Kleinster erlaubter Winkel eines Netzdreiecks (Grad). 30 ergibt gute Netze; bis etwa 33 ist möglich.</translation>
+    </message>
+    <message>
+        <source>Nonlinear AC problems: Successive Approximation is robust; Newton converges faster when it converges.</source>
+        <translation>Nichtlineare AC-Probleme: Sukzessive Approximation ist robust; Newton konvergiert schneller, wenn er konvergiert.</translation>
+    </message>
+    <message>
+        <source>On: the mesh is refined automatically near small features and corners. Off: only the mesh sizes you set are used.</source>
+        <translation>Ein: das Netz wird an kleinen Details und Ecken automatisch verfeinert. Aus: nur die eingestellten Netzgrößen werden verwendet.</translation>
+    </message>
+    <message>
+        <source>Start from an earlier solution: Incremental for small-signal permeability around an operating point, Frozen to keep the permeabilities of that solution.</source>
+        <translation>Von einer früheren Lösung ausgehen: Inkrementell für Kleinsignal-Permeabilität um einen Arbeitspunkt, Eingefroren, um deren Permeabilitäten beizubehalten.</translation>
+    </message>
 </context>
 <context>
     <name>PropertyListDialog</name>
@@ -4067,6 +4203,46 @@ ersten Ansicht ausgewählt.</translation>
     <message>
         <source>Inductance needs a non-zero circuit current.</source>
         <translation>Die Induktivität braucht einen Stromkreisstrom ungleich null.</translation>
+    </message>
+    <message>
+        <source>Area mode: click regions to see force, torque, energy and losses here.</source>
+        <translation>Bereichsmodus: Bereiche anklicken, um hier Kraft, Drehmoment, Energie und Verluste zu sehen.</translation>
+    </message>
+    <message>
+        <source>Force x (stress tensor)</source>
+        <translation>Kraft x (Spannungstensor)</translation>
+    </message>
+    <message>
+        <source>Force y (stress tensor)</source>
+        <translation>Kraft y (Spannungstensor)</translation>
+    </message>
+    <message>
+        <source>Torque (stress tensor)</source>
+        <translation>Drehmoment (Spannungstensor)</translation>
+    </message>
+    <message>
+        <source>Field energy</source>
+        <translation>Feldenergie</translation>
+    </message>
+    <message>
+        <source>Total losses</source>
+        <translation>Gesamtverluste</translation>
+    </message>
+    <message>
+        <source>Total current</source>
+        <translation>Gesamtstrom</translation>
+    </message>
+    <message>
+        <source>Cross-section area</source>
+        <translation>Querschnittsfläche</translation>
+    </message>
+    <message>
+        <source>Force z (stress tensor)</source>
+        <translation>Kraft z (Spannungstensor)</translation>
+    </message>
+    <message>
+        <source>Selected regions:</source>
+        <translation>Ausgewählte Bereiche:</translation>
     </message>
 </context>
 <context>
