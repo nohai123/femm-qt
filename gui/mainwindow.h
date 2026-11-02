@@ -217,6 +217,7 @@ private:
     class QStackedWidget *m_centralStack = nullptr;
     // Creates a new document from the New Problem dialog's settings.
     void createNewProblem(int physics, bool askSettings);
+    void showDocumentArea();
     // Reload drawing colours after a light/dark switch and repaint.
     void applyTheme();
 

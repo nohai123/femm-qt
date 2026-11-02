@@ -26,6 +26,8 @@
 #include "mainwindow.h"
 #include <QScreen>
 #include <QStatusBar>
+#include <QStackedWidget>
+#include <QMdiArea>
 #include "report_export.h"
 #include "plot_widget.h"
 #include "xy_plot.h"
@@ -86,6 +88,10 @@ class GuiTests : public QObject
     }
 
 private slots:
+    // The app starts the script engine before any window exists; the main
+    // window registers every activated document with it.
+    void initTestCase() { init_py(); }
+
     void init()
     {
         doc = new MagDocument;
@@ -832,6 +838,23 @@ private slots:
         qDebug() << "minimum with model" << min2;
         QVERIFY2(min2.width() <= 900, qPrintable(QString("min width %1").arg(min2.width())));
         QVERIFY2(min2.height() <= 650, qPrintable(QString("min height %1").arg(min2.height())));
+    }
+
+    // From the start page, the first new document must show up at once
+    void firstDocumentReplacesStartPage()
+    {
+        ed->hide();
+        MainWindow w(nullptr);
+        w.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&w));
+        auto *stack = w.findChild<QStackedWidget *>();
+        QVERIFY(stack);
+        QCOMPARE(stack->currentIndex(), 0);                // start page
+        EditorWidget *e = w.addEditorTab(new MagDocument, "first.fem");
+        QApplication::processEvents();
+        QVERIFY2(stack->currentWidget() == w.findChild<QMdiArea *>(), "documents shown");
+        QVERIFY2(e->isVisible(), "the new editor is visible");
+        QVERIFY(w.activeEditorWidget() == e);
     }
 
     void commandPaletteFindsAndRuns()

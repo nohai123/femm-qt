@@ -503,8 +503,19 @@ void MainWindow::doRepaintNow()
 // Tab management
 // ================================================================
 
+// The start page and the documents share the central area. Switch to the
+// documents BEFORE adding one: added while hidden, Qt never activates the
+// new sub-window, so the UI stayed on the start page and the first New had
+// to be done twice.
+void MainWindow::showDocumentArea()
+{
+    if (m_centralStack && m_centralStack->currentWidget() != m_mdiArea)
+        m_centralStack->setCurrentWidget(m_mdiArea);
+}
+
 EditorWidget *MainWindow::addEditorTab(DocumentBase *doc, const QString &title)
 {
+    showDocumentArea();
     auto *editor = new EditorWidget(doc);
     connect(editor, &EditorWidget::coordinatesChanged, this, &MainWindow::updateCoordinates);
     connect(editor, &EditorWidget::statusMessage, this, &MainWindow::updateStatus);
@@ -562,6 +573,8 @@ EditorWidget *MainWindow::addEditorTab(DocumentBase *doc, const QString &title)
             sub->setWindowIcon(QIcon(QString(":/icons/") + icoNames[pt]));
     }
     sub->showMaximized();
+    m_mdiArea->setActiveSubWindow(sub);
+    if (m_uiState != 0) showPreprocessorUI();
 
     // Start in the Select tool, as a CAD program does: a stray click selects
     // instead of dropping a node.
@@ -642,6 +655,7 @@ static void warnMultiplyDefinedLabels(QWidget *parent)
 
 void MainWindow::openResultsFile(const QString &ansPath, void *scriptDoc)
 {
+    showDocumentArea();
     QString tabName = QFileInfo(ansPath).fileName();
     bool isScalar = ansPath.endsWith(".res", Qt::CaseInsensitive) ||
                     ansPath.endsWith(".anh", Qt::CaseInsensitive) ||
