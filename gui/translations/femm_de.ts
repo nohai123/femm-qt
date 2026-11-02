@@ -2815,11 +2815,18 @@ Wiederherstellen?</translation>
     </message>
     <message numerus="yes">
         <source>Open boundary added; %n region(s) filled with air.</source>
-        <translation><numerusform>Offener Rand hinzugefügt; %n Bereich mit Luft gefüllt.</numerusform><numerusform>Offener Rand hinzugefügt; %n Bereiche mit Luft gefüllt.</numerusform></translation>
+        <translation>
+            <numerusform>Offener Rand hinzugefügt; %n Bereich mit Luft gefüllt.</numerusform>
+            <numerusform>Offener Rand hinzugefügt; %n Bereiche mit Luft gefüllt.</numerusform>
+        </translation>
     </message>
     <message>
         <source>Zoom to Selection</source>
         <translation>Auf Auswahl zoomen</translation>
+    </message>
+    <message>
+        <source>pre-production release</source>
+        <translation>Vorabversion</translation>
     </message>
 </context>
 <context>
@@ -4886,6 +4893,10 @@ ersten Ansicht ausgewählt.</translation>
     <message>
         <source>No match</source>
         <translation>Kein Treffer</translation>
+    </message>
+    <message>
+        <source>Pre-production release: this is a test build of a reworked user interface. Its results are NOT yet validated and must not be relied on for design decisions. Check important values against the official FEMM release.</source>
+        <translation>Vorabversion: Dies ist ein Test-Build einer überarbeiteten Benutzeroberfläche. Die Ergebnisse sind NOCH NICHT validiert und dürfen nicht als Grundlage für Auslegungsentscheidungen dienen. Wichtige Werte bitte mit dem offiziellen FEMM-Release gegenprüfen.</translation>
     </message>
 </context>
 <context>

@@ -68,6 +68,13 @@ add_executable(femm_gui
 )
 femm_add_version_resource(femm_gui "FEMM")
 
+# Pre-production builds of this UI fork say so, prominently: results are not
+# yet validated against the upstream release.
+option(FEMM_PRERELEASE "Mark the build as a pre-production release (warning banner)" ON)
+if(FEMM_PRERELEASE)
+    target_compile_definitions(femm_gui PRIVATE FEMM_PRERELEASE=1)
+endif()
+
 # --- Translations (gui/translations/femm_<lang>.ts) -------------------------
 # Compiled to .qm and embedded under :/i18n. main.cpp picks the language from
 # the ui/language setting, else the system locale; English needs no file.

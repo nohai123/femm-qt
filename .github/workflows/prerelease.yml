@@ -1,0 +1,128 @@
+# Pre-production builds of the UI fork for macOS, Windows and Linux.
+#
+# Push a tag like v5.0-ux.1-pre (or run it by hand) and this builds all three,
+# solves a small magnetics model on each as a smoke test, and attaches the
+# packages to a GitHub release marked "Pre-release". The builds carry the
+# in-app warning that results are not yet validated (FEMM_PRERELEASE, on by
+# default in gui/CMakeLists.txt).
+name: Pre-release builds
+
+on:
+  push:
+    tags: ['v*-pre*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create or update (e.g. v5.0-ux.1-pre)'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  QT_VERSION: '6.8.3'
+
+jobs:
+  macos:
+    runs-on: macos-14            # Apple silicon
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: mac
+          target: desktop
+          arch: clang_64
+          cache: true
+      - name: Build tools
+        run: brew install ninja
+      - name: Build
+        env:
+          FEMM_QT_PREFIX: ${{ env.QT_ROOT_DIR }}
+          FEMM_QT: official
+        run: ./macos_build.sh
+      - name: Smoke test (solve a coil)
+        run: bash .github/smoke_test.sh build/bin/femm_gui.app/Contents/MacOS/femm_headless
+      - name: Package (.dmg)
+        run: |
+          bash packaging/macos_dmg.sh
+          mkdir -p dist
+          dmg=$(find . -name '*.dmg' -newer CMakeLists.txt -not -path './dist/*' | head -1)
+          cp "$dmg" dist/femm-qt-ux-prerelease-macos-arm64.dmg
+      - uses: actions/upload-artifact@v4
+        with: { name: macos, path: dist/* }
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          tools: 'tools_mingw1310'
+          dir: 'C:\'
+          cache: true
+      - name: Build tools
+        run: choco install ninja -y
+      - name: Build
+        shell: cmd
+        env:
+          QT_ROOT: 'C:\Qt'
+        run: win_build.bat
+      - name: Smoke test (solve a coil)
+        shell: bash
+        run: bash .github/smoke_test.sh build/bin/femm_headless.exe
+      - name: Package (.zip)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path build\bin\* -DestinationPath dist\femm-qt-ux-prerelease-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: dist/* }
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build qt6-base-dev \
+            qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools libgl1-mesa-dev
+      - name: Build
+        run: ./linux_build.sh
+      - name: Smoke test (solve a coil)
+        run: bash .github/smoke_test.sh build/bin/femm_headless
+      - name: Package (.tar.gz)
+        run: |
+          mkdir -p dist
+          tar -C build -czf dist/femm-qt-ux-prerelease-linux-x64.tar.gz bin
+      - uses: actions/upload-artifact@v4
+        with: { name: linux, path: dist/* }
+
+  release:
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          ls -la dist
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --prerelease \
+              --title "FEMM UI-Überarbeitung – Vorabversion ($TAG)" \
+              --notes-file .github/prerelease-notes.md
+          fi

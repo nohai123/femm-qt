@@ -65,5 +65,8 @@ private:
     QLineEdit *m_search;
 };
 
+// Text of the pre-production warning (empty for a regular build).
+QString femmPrereleaseWarning();
+
 // The folder examples are copied to before opening (they ship read-only).
 QString femmExamplesWorkDir();

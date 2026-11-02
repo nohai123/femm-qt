@@ -79,6 +79,18 @@ QLabel *heading(const QString &t)
 
 } // namespace
 
+QString femmPrereleaseWarning()
+{
+#ifdef FEMM_PRERELEASE
+    return QCoreApplication::translate("WelcomePage",
+        "Pre-production release: this is a test build of a reworked user interface. "
+        "Its results are NOT yet validated and must not be relied on for design "
+        "decisions. Check important values against the official FEMM release.");
+#else
+    return QString();
+#endif
+}
+
 QString femmExamplesWorkDir()
 {
     QString docs = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
@@ -199,6 +211,14 @@ WelcomePage::WelcomePage(QWidget *parent)
     QFont tf = title->font(); tf.setPointSizeF(tf.pointSizeF() * 2.4); tf.setBold(true); title->setFont(tf);
     left->addWidget(title);
     left->addWidget(new QLabel(tr("Finite Element Method Magnetics \u2014 2D and axisymmetric field simulation")));
+    if (!femmPrereleaseWarning().isEmpty()) {
+        auto *warn = new QLabel(QStringLiteral("\u26a0\ufe0f ") + femmPrereleaseWarning());
+        warn->setWordWrap(true);
+        warn->setStyleSheet("QLabel { background: #fdecea; color: #8a1c13; border: 1px solid #e0a29b;"
+                            " border-radius: 4px; padding: 8px; }");
+        left->addSpacing(8);
+        left->addWidget(warn);
+    }
     left->addSpacing(16);
     left->addWidget(heading(tr("New")));
     auto *grid = new QGridLayout;

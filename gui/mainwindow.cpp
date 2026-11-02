@@ -221,7 +221,8 @@ MainWindow::MainWindow(TcpServer *server, QWidget *parent)
     : QMainWindow(parent)
     , m_server(server)
 {
-    setWindowTitle("femm");
+    setWindowTitle(femmPrereleaseWarning().isEmpty() ? QStringLiteral("femm")
+                                                     : QStringLiteral("femm \u2014 ") + tr("pre-production release"));
     resize(1024, 768);
 
     m_mdiArea = new QMdiArea(this);
@@ -3011,6 +3012,7 @@ void MainWindow::createLeftToolbars()
         showAbout(this, QString("femm %1").arg(femm_version()),
             QString("Finite Element Method Magnetics, Version %1 (build %2)\n")
                 .arg(femm_version(), femm_build()) +
+            (femmPrereleaseWarning().isEmpty() ? QString() : "\n" + femmPrereleaseWarning() + "\n\n") +
             "Copyright © 2026 David Meeker and contributors\n\n"
             "The femm-qt application (this GUI, the libfemm engine, the IPC "
             "server, the tangle mesher, and the language bindings) is released "
