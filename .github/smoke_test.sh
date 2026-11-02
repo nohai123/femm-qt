@@ -9,9 +9,17 @@ set -euo pipefail
 headless="$1"
 work="$(mktemp -d)"
 model="$work/coil.fem"
-# Forward slashes everywhere: the engine on Windows takes them too
-model_py="${model//\\//}"
-cat > "$work/coil.py" <<EOF
+script="$work/coil.py"
+# Under Git Bash on Windows /tmp/... means nothing to a native program:
+# hand it C:/... paths
+if command -v cygpath >/dev/null 2>&1; then
+    model_py="$(cygpath -m "$model")"
+    script_arg="$(cygpath -m "$script")"
+else
+    model_py="$model"
+    script_arg="$script"
+fi
+cat > "$script" <<EOF
 newdocument(0)
 mi_probdef(0, 'millimeters', 'axi', 1e-8, 1, 30)
 mi_drawrectangle(0, -20, 8, 20)
@@ -40,6 +48,6 @@ if not (1.9e-3 < L < 2.15e-3):
     raise SystemExit("smoke test: inductance %g H outside 1.9-2.15 mH" % L)
 print("SMOKE OK")
 EOF
-out="$("$headless" --port 48399 -run "$work/coil.py" 2>&1)" || true
+out="$("$headless" --port 48399 -run "$script_arg" 2>&1)" || true
 echo "$out"
 echo "$out" | grep -q "SMOKE OK"
