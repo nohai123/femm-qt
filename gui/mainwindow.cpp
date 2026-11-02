@@ -2943,7 +2943,9 @@ void MainWindow::createLeftToolbars()
             });
         }
         m_windowMenu->addSeparator();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
         connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this, [this]() { applyTheme(); });
+#endif
     }
     QMenu *window = m_windowMenu;
     window->addAction(tr("&Cascade"), QKeySequence(), [this]() { m_mdiArea->cascadeSubWindows(); });

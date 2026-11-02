@@ -17,7 +17,11 @@ bool femmDarkTheme()
     const int t = QSettings().value("ui/theme", 0).toInt();
     if (t == 1) return false;
     if (t == 2) return true;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+#else
+    return false;   // Qt < 6.5 cannot tell; Window > Appearance > Dark still works
+#endif
 }
 
 // Global singleton
