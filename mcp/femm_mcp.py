@@ -477,15 +477,70 @@ def add_boundary(name: str, kind: str = "A=0", value: float = 0.0) -> str:
 
 @mcp.tool()
 def set_boundary(x: float, y: float, boundary: str) -> str:
-    """Apply a boundary condition to the segment or arc nearest (x, y)."""
-    p = _prefix()
+    """Apply a boundary condition to the segment or arc nearest (x, y) -- for an
+    outer boundary drawn as an arc, give a point on (or near) the arc."""
+    m = _model()
+    p = PREFIX[m["physics"]]
+    if boundary not in m["boundaries"] and boundary != "<None>":
+        raise FemmError(f"boundary '{boundary}' does not exist -- add_boundary first")
+    kind, edge, where = _nearest_edge(m, x, y)
+    if kind is None:
+        raise FemmError("the model has no lines or arcs")
     femm.call(f"{p}_clearselected()")
-    femm.call(f"{p}_selectsegment({x}, {y})")
     try:
-        femm.call(f"{p}_setsegmentprop({q(boundary)}, 0, 1, 0, 0)")
+        if kind == "segment":
+            femm.call(f"{p}_selectsegment({where[0]}, {where[1]})")
+            femm.call(f"{p}_setsegmentprop({q(boundary)}, 0, 1, 0, {edge.get('group', 0)})")
+        else:
+            femm.call(f"{p}_selectarcsegment({where[0]}, {where[1]})")
+            femm.call(f"{p}_setarcsegmentprop({edge.get('maxseg', 5)}, {q(boundary)}, 0, {edge.get('group', 0)})")
     finally:
         femm.call(f"{p}_clearselected()")
-    return f"Boundary {boundary} set near ({x}, {y})."
+    # Check it landed where it was meant to
+    after = _model()
+    lst = after["segments"] if kind == "segment" else after["arcs"]
+    if not any(e.get("boundary") == boundary for e in lst):
+        raise FemmError("could not apply the boundary condition -- point closer to the intended edge")
+    return f"Boundary {boundary} set on the {kind} nearest ({x}, {y})."
+
+
+def _nearest_edge(m: dict, x: float, y: float):
+    """(kind, edge, point on it) for the segment or arc closest to (x, y)."""
+    import math
+    nodes = m["nodes"]
+    best = (math.inf, None, None, None)
+    for sgm in m["segments"]:
+        (ax, ay), (bx, by) = nodes[sgm["n0"]], nodes[sgm["n1"]]
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy or 1e-300
+        t = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / L2))
+        px, py = ax + t * dx, ay + t * dy
+        d = math.hypot(x - px, y - py)
+        if d < best[0]:
+            best = (d, "segment", sgm, (ax + 0.5 * dx, ay + 0.5 * dy))
+    for arc in m["arcs"]:
+        (ax, ay), (bx, by) = nodes[arc["n0"]], nodes[arc["n1"]]
+        th = math.radians(arc["angle"])
+        # Centre of the CCW arc n0 -> n1 sweeping th
+        cx_, cy_ = (ax + bx) / 2, (ay + by) / 2
+        chord = math.hypot(bx - ax, by - ay)
+        if chord == 0 or th <= 0:
+            continue
+        R = chord / (2 * math.sin(th / 2))
+        h = math.sqrt(max(R * R - (chord / 2) ** 2, 0.0))
+        ux, uy = -(by - ay) / chord, (bx - ax) / chord        # left normal of the chord
+        sgn = 1 if th < math.pi else -1
+        cx, cy = cx_ + sgn * h * ux, cy_ + sgn * h * uy
+        a0 = math.atan2(ay - cy, ax - cx)
+        ap = (math.atan2(y - cy, x - cx) - a0) % (2 * math.pi)
+        if ap <= th:
+            d = abs(math.hypot(x - cx, y - cy) - R)
+        else:
+            d = min(math.hypot(x - ax, y - ay), math.hypot(x - bx, y - by))
+        if d < best[0]:
+            mid = a0 + th / 2
+            best = (d, "arc", arc, (cx + R * math.cos(mid), cy + R * math.sin(mid)))
+    return best[1], best[2], best[3]
 
 
 @mcp.tool()

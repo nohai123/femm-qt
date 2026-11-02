@@ -143,7 +143,7 @@ inline std::string document_geometry_json(const DocumentBase &d)
         const auto &a = d.arclist[i];
         if (i) j += ",";
         j += "{\"n0\":" + std::to_string(a.n0) + ",\"n1\":" + std::to_string(a.n1) +
-             ",\"angle\":" + json_num(a.ArcLength);
+             ",\"angle\":" + json_num(a.ArcLength) + ",\"maxseg\":" + json_num(a.MaxSideLength);
         if (!a.BoundaryMarker.empty() && a.BoundaryMarker != "<None>") j += ",\"boundary\":" + json_escape(a.BoundaryMarker);
         if (a.InGroup) j += ",\"group\":" + std::to_string(a.InGroup);
         j += "}";

@@ -56,13 +56,18 @@ async def main():
             print(await call("add_boundary", name="A0"))
             print(await call("set_boundary", x=56.6, y=56.6, boundary="A0"))
             model = json.loads(await call("get_model"))
+            # The outer boundary is the arc: the condition must be on it
+            assert any(a.get("boundary") == "A0" for a in model["arcs"]), "A0 not on the outer arc"
+            assert not any(sg.get("boundary") for sg in model["segments"]), "A0 landed on a segment"
             print("model:", len(model["nodes"]), "nodes", len(model["labels"]), "labels", model["materials"])
             print(await call("analyze", save_as=os.path.join(tempfile.gettempdir(), "mcp_coil.fem")))
             pv = json.loads(await call("point_values", x=4, y=0))
             print("B in core:", pv["B1"], pv["B2"])
             cp = json.loads(await call("circuit_properties", name="coil"))
             print("circuit:", cp)
-            assert cp["inductance"] > 0, "inductance must be positive"
+            # Reference: same model solved by a plain script (A=0 on the arc,
+            # linear core mu_r 500 gives 2.02 mH; the iron core is close)
+            assert 1.5e-3 < cp["inductance"] < 2.6e-3, cp["inductance"]
             f = await call("block_integral", points=[[4, 0]], integral_type=19)
             print("Fz on core:", f)
             res = await call("run_python", code="result = 6*7")
